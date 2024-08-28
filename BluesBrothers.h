@@ -72,8 +72,8 @@
 #define SW_SHOOTER_LANE             33
 #define SW_LEFT_OUTLANE             34
 #define SW_LEFT_INLANE              35
-#define SW_RIGHT_OUTLANE            36
-#define SW_RIGHT_INLANE             37
+#define SW_RIGHT_OUTLANE            37
+#define SW_RIGHT_INLANE             36
 #define SW_RIGHT_FLIP_LANE          38
 #define SW_TRAP                     39
 
