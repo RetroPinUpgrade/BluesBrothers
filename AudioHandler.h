@@ -172,6 +172,7 @@ class AudioHandler
 
     boolean PlayBackgroundSoundtrack(AudioSoundtrack *soundtrackArray, unsigned short numSoundtrackEntries, unsigned long currentTime, boolean randomOrder=true);
     boolean PlayBackgroundSong(unsigned short trackIndex, boolean loopTrack=true);
+    unsigned short GetBackgroundSong() { return currentBackgroundTrack; }
 
     boolean PlaySound(unsigned short soundIndex, byte audioType, byte overrideVolume=0xFF);
     boolean FadeSound(unsigned short soundIndex, int fadeGain, int numMilliseconds, boolean stopTrack);

@@ -103,7 +103,7 @@ byte GetCPCCredits(byte cpcSelection) {
 #define TOTAL_DISPLAY_DIGITS 30
 #endif
 
-int RunBaseSelfTest(int curState, boolean curStateChanged, unsigned long CurrentTime, byte resetSwitch, byte slamSwitch) {
+int RunBaseSelfTest(int curState, boolean curStateChanged, unsigned long CurrentTime, byte resetSwitch, byte slamSwitch, byte altSelfTestSwitch) {
   byte curSwitch = RPU_PullFirstFromSwitchStack();
   int returnState = curState;
   boolean resetDoubleClick = false;
@@ -142,7 +142,7 @@ int RunBaseSelfTest(int curState, boolean curStateChanged, unsigned long Current
     returnState = MACHINE_STATE_ATTRACT;
   }
   
-  if (curSwitch==SW_SELF_TEST_SWITCH && (CurrentTime-LastSelfTestChange)>250) {
+  if ((curSwitch==SW_SELF_TEST_SWITCH || curSwitch==altSelfTestSwitch) && (CurrentTime-LastSelfTestChange)>250) {
     if (RPU_GetUpDownSwitchState()) returnState -= 1;
     else returnState += 1;
 //    if (returnState==MACHINE_STATE_TEST_DONE) returnState = MACHINE_STATE_ATTRACT;

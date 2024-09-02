@@ -66,7 +66,7 @@
 //#define RPU_OS_USE_WTYPE_1_SOUND
 //#define RPU_OS_USE_WTYPE_2_SOUND
 //#define RPU_OS_USE_W11_SOUND
-
+#define RPU_NUMBER_OF_PLAYERS_ALLOWED       2
 
 
 

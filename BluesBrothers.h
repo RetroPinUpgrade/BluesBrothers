@@ -41,6 +41,7 @@
 #define SW_TROUGH_1                 2
 #define SW_TROUGH_2                 3
 #define SW_TROUGH_3                 4
+#define SW_SELF_TEST_ON_MATRIX      5
 #define SW_OUTHOLE                  7
 #define SW_CREDIT_RESET             8
 #define SW_COIN_1                   9
@@ -78,8 +79,8 @@
 #define SW_TRAP                     39
 
 #define SOL_TOP_GATE_OPEN           1
-#define SOL_TOP_GATE_CLOSED         0
-#define SOL_LIFT_GATE               2
+#define SOL_TOP_GATE_CLOSE          0
+#define SOL_LEFT_GATE_OPEN          9
 #define SOL_POP_BUMPER              6
 #define SOL_DROP_BANK_R_RESET       2
 #define SOL_DROP_BANK_L_RESET       3
@@ -90,7 +91,8 @@
 #define SOL_TOP_SLING               13
 #define SOL_SHOOTER_KICK            12
 #define SOL_SERVE_BALL              8
-#define SOL_LEFT_GATE_OPEN          5
+#define SOL_LIFT_GATE               5
+#define SOL_LEFT_GATE_CLOSE         14
 
 
 #define NUM_SWITCHES_WITH_TRIGGERS          4 // total number of solenoid/switch pairs
