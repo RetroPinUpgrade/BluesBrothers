@@ -33,6 +33,16 @@
 #define LAMP_POP_WHITE_DOWN         12    // Q8
 #define LAMP_POP_SMALL_BLUE         20    // Q10
 #define LAMP_BEHIND_CAPTIVE         8     // Q13
+#define LAMP_START_BUTTON           51    // Q47
+#define LAMP_LAUNCH_BUTTON          55    // Q43
+#define LAMP_HEAD_TILT              57    // Q19
+#define LAMP_HEAD_GAME_OVER         56    // Q6
+#define LAMP_HEAD_BALL_IN_PLAY      54    // Q30
+#define LAMP_HEAD_MATCH             50    // Q33
+#define LAMP_HEAD_PLAYER_1_UP       49    // Q15
+#define LAMP_HEAD_PLAYER_2_UP       52    // Q5
+#define LAMP_HEAD_PLAYER_3_UP       53    // Q18
+#define LAMP_HEAD_PLAYER_4_UP       48    // Q16
 
 
 
