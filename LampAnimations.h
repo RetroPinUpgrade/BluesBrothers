@@ -3,6 +3,12 @@
 #include "RPU_Config.h"
 #include "RPU.h"
 
+byte ElwoodLampAssignments[] = {LAMP_E_1, LAMP_L, LAMP_W, LAMP_O_1, LAMP_O_2, LAMP_D};
+byte JakeLampAssignments[] = {LAMP_J, LAMP_A, LAMP_K, LAMP_E_2};
+
+
+
+
 // This file can define a series of animations, stored 
 // with each lamp as a bit in the following array.
 // Lamp 0 = the first bit of the first byte, so "{0x01," below.
@@ -124,7 +130,7 @@ byte LampAnimations[NUM_LAMP_ANIMATIONS][LAMP_ANIMATION_STEPS][NUM_LAMP_ANIMATIO
     {0x00, 0x04, 0x00, 0x00, 0x00, 0x30}, // lamps on = 3
     {0x10, 0x00, 0x00, 0x00, 0x90, 0x00}, // lamps on = 3
     {0x01, 0x00, 0x00, 0x00, 0x80, 0x00}, // lamps on = 2
-    {0x80, 0x00, 0x00, 0x00, 0x28, 0x08}, // lamps on = 4
+    {0x80, 0x00, 0x00, 0x00, 0x20, 0x08}, // lamps on = 4
     {0x00, 0x0A, 0x00, 0x00, 0x20, 0x00}, // lamps on = 3
     {0x00, 0x20, 0x00, 0x00, 0x00, 0x00}, // lamps on = 1
     {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // lamps on = 0
@@ -204,6 +210,149 @@ void ShowLampAnimationSingleStep(byte animationNum, byte currentStep, byte *lamp
 }
 
 
+
+boolean LampAnimationMinimodeStart(unsigned long elapsedTime, boolean showJake, boolean showElwood, boolean showSpinner) {
+  if (elapsedTime>2921) return false;
+
+  if (elapsedTime<1796) {
+    for (byte count=0; count<6; count++) RPU_SetLampState(ElwoodLampAssignments[count], showElwood, 0, 75);  
+    for (byte count=0; count<4; count++) RPU_SetLampState(JakeLampAssignments[count], showJake, 0, 75);  
+    RPU_SetLampState(LAMP_LEFT_SPINNER, showSpinner, 0, 75);  
+    RPU_SetLampState(LAMP_SHOOT_AGAIN, 1, 0, 75);
+  }
+
+  if (elapsedTime<275) {
+    RPU_SetLampState(LAMP_BONUS_1, 0);
+    RPU_SetLampState(LAMP_BONUS_2, 0);
+    RPU_SetLampState(LAMP_BONUS_3, 0);
+    RPU_SetLampState(LAMP_BONUS_4, 0);
+    RPU_SetLampState(LAMP_BONUS_5, 0);
+    RPU_SetLampState(LAMP_BONUS_6, 0);
+    RPU_SetLampState(LAMP_SPECIAL, 0);
+    RPU_SetLampState(LAMP_POP_WHITE_DOWN, 0);
+    RPU_SetLampState(LAMP_POP_SMALL_BLUE, 0);
+    RPU_SetLampState(LAMP_POP_BLUE_UP, 0);
+    RPU_SetLampState(LAMP_HIDE_AWAY, 0);
+    RPU_SetLampState(LAMP_CAPTIVE_BALL, 0);
+    RPU_SetLampState(LAMP_OPEN_SAVE_GATE, 0);
+    RPU_SetLampState(LAMP_LEFT_INLANE, 0);
+    RPU_SetLampState(LAMP_RIGHT_INLANE, 0);
+    RPU_SetLampState(LAMP_RIGHT_OUTLANE_EB, 0);
+    RPU_SetLampState(LAMP_LEFT_OUTLANE, 0);
+  } else if (elapsedTime<494 || (elapsedTime>866 && elapsedTime<1032)) {
+    RPU_SetLampState(LAMP_CAPTIVE_BALL, 1);
+    RPU_SetLampState(LAMP_OPEN_SAVE_GATE, 1);
+    RPU_SetLampState(LAMP_LEFT_INLANE, 1);
+    RPU_SetLampState(LAMP_LEFT_OUTLANE, 1);  
+    RPU_SetLampState(LAMP_HIDE_AWAY, 1);
+    RPU_SetLampState(LAMP_BONUS_1, 1);
+    RPU_SetLampState(LAMP_BONUS_2, 1);
+    RPU_SetLampState(LAMP_BONUS_3, 1);
+    RPU_SetLampState(LAMP_BONUS_4, 1);
+    RPU_SetLampState(LAMP_BONUS_5, 1);
+    RPU_SetLampState(LAMP_BONUS_6, 1);
+    RPU_SetLampState(LAMP_SPECIAL, 1);
+    RPU_SetLampState(LAMP_POP_WHITE_DOWN, 0);
+    RPU_SetLampState(LAMP_POP_SMALL_BLUE, 0);
+    RPU_SetLampState(LAMP_POP_BLUE_UP, 0);
+    RPU_SetLampState(LAMP_RIGHT_INLANE, 0);
+    RPU_SetLampState(LAMP_RIGHT_OUTLANE_EB, 0);
+  } else if (elapsedTime<866) {
+    RPU_SetLampState(LAMP_CAPTIVE_BALL, 0);
+    RPU_SetLampState(LAMP_OPEN_SAVE_GATE, 0);
+    RPU_SetLampState(LAMP_LEFT_INLANE, 0);
+    RPU_SetLampState(LAMP_LEFT_OUTLANE, 0);  
+    RPU_SetLampState(LAMP_HIDE_AWAY, 0);
+    RPU_SetLampState(LAMP_BONUS_1, 0);
+    RPU_SetLampState(LAMP_BONUS_2, 0);
+    RPU_SetLampState(LAMP_BONUS_3, 0);
+    RPU_SetLampState(LAMP_BONUS_4, 0);
+    RPU_SetLampState(LAMP_BONUS_5, 0);
+    RPU_SetLampState(LAMP_BONUS_6, 0);
+    RPU_SetLampState(LAMP_SPECIAL, 0);
+    RPU_SetLampState(LAMP_POP_WHITE_DOWN, 1);
+    RPU_SetLampState(LAMP_POP_SMALL_BLUE, 1);
+    RPU_SetLampState(LAMP_POP_BLUE_UP, 1);
+    RPU_SetLampState(LAMP_RIGHT_INLANE, 1);
+    RPU_SetLampState(LAMP_RIGHT_OUTLANE_EB, 1);
+  } else if (elapsedTime<1230) {
+    RPU_SetLampState(LAMP_CAPTIVE_BALL, 0);
+    RPU_SetLampState(LAMP_OPEN_SAVE_GATE, 0);
+    RPU_SetLampState(LAMP_LEFT_INLANE, 0);
+    RPU_SetLampState(LAMP_LEFT_OUTLANE, 0);  
+    RPU_SetLampState(LAMP_HIDE_AWAY, 0);
+    RPU_SetLampState(LAMP_BONUS_1, 1);
+    RPU_SetLampState(LAMP_BONUS_2, 1);
+    RPU_SetLampState(LAMP_BONUS_3, 1);
+    RPU_SetLampState(LAMP_BONUS_4, 1);
+    RPU_SetLampState(LAMP_BONUS_5, 1);
+    RPU_SetLampState(LAMP_BONUS_6, 1);
+    RPU_SetLampState(LAMP_SPECIAL, 1);
+    RPU_SetLampState(LAMP_POP_WHITE_DOWN, 0);
+    RPU_SetLampState(LAMP_POP_SMALL_BLUE, 0);
+    RPU_SetLampState(LAMP_POP_BLUE_UP, 0);
+    RPU_SetLampState(LAMP_RIGHT_INLANE, 0);
+    RPU_SetLampState(LAMP_RIGHT_OUTLANE_EB, 0);
+  } else if (elapsedTime<1412) {
+    RPU_SetLampState(LAMP_CAPTIVE_BALL, 0);
+    RPU_SetLampState(LAMP_OPEN_SAVE_GATE, 1);
+    RPU_SetLampState(LAMP_LEFT_INLANE, 1);
+    RPU_SetLampState(LAMP_LEFT_OUTLANE, 1);  
+    RPU_SetLampState(LAMP_HIDE_AWAY, 0);
+    RPU_SetLampState(LAMP_BONUS_1, 0);
+    RPU_SetLampState(LAMP_BONUS_2, 0);
+    RPU_SetLampState(LAMP_BONUS_3, 0);
+    RPU_SetLampState(LAMP_BONUS_4, 0);
+    RPU_SetLampState(LAMP_BONUS_5, 0);
+    RPU_SetLampState(LAMP_BONUS_6, 0);
+    RPU_SetLampState(LAMP_SPECIAL, 0);
+    RPU_SetLampState(LAMP_POP_WHITE_DOWN, 0);
+    RPU_SetLampState(LAMP_POP_SMALL_BLUE, 0);
+    RPU_SetLampState(LAMP_POP_BLUE_UP, 0);
+    RPU_SetLampState(LAMP_RIGHT_INLANE, 1);
+    RPU_SetLampState(LAMP_RIGHT_OUTLANE_EB, 1);
+  } else if (elapsedTime<1683) {
+    RPU_SetLampState(LAMP_CAPTIVE_BALL, 1);
+    RPU_SetLampState(LAMP_OPEN_SAVE_GATE, 0);
+    RPU_SetLampState(LAMP_LEFT_INLANE, 0);
+    RPU_SetLampState(LAMP_LEFT_OUTLANE, 0);  
+    RPU_SetLampState(LAMP_HIDE_AWAY, 1);
+    RPU_SetLampState(LAMP_BONUS_1, 0);
+    RPU_SetLampState(LAMP_BONUS_2, 0);
+    RPU_SetLampState(LAMP_BONUS_3, 0);
+    RPU_SetLampState(LAMP_BONUS_4, 0);
+    RPU_SetLampState(LAMP_BONUS_5, 0);
+    RPU_SetLampState(LAMP_BONUS_6, 0);
+    RPU_SetLampState(LAMP_SPECIAL, 0);
+    RPU_SetLampState(LAMP_POP_WHITE_DOWN, 1);
+    RPU_SetLampState(LAMP_POP_SMALL_BLUE, 1);
+    RPU_SetLampState(LAMP_POP_BLUE_UP, 1);
+    RPU_SetLampState(LAMP_RIGHT_INLANE, 1);
+    RPU_SetLampState(LAMP_RIGHT_OUTLANE_EB, 1);
+  } else if (elapsedTime<1796 || elapsedTime>=2500) {
+    RPU_SetLampState(LAMP_CAPTIVE_BALL, 0);
+    RPU_SetLampState(LAMP_OPEN_SAVE_GATE, 0);
+    RPU_SetLampState(LAMP_LEFT_INLANE, 0);
+    RPU_SetLampState(LAMP_LEFT_OUTLANE, 0);  
+    RPU_SetLampState(LAMP_HIDE_AWAY, 0);
+    RPU_SetLampState(LAMP_BONUS_1, 0);
+    RPU_SetLampState(LAMP_BONUS_2, 0);
+    RPU_SetLampState(LAMP_BONUS_3, 0);
+    RPU_SetLampState(LAMP_BONUS_4, 0);
+    RPU_SetLampState(LAMP_BONUS_5, 0);
+    RPU_SetLampState(LAMP_BONUS_6, 0);
+    RPU_SetLampState(LAMP_SPECIAL, 0);
+    RPU_SetLampState(LAMP_POP_WHITE_DOWN, 0);
+    RPU_SetLampState(LAMP_POP_SMALL_BLUE, 0);
+    RPU_SetLampState(LAMP_POP_BLUE_UP, 0);
+    RPU_SetLampState(LAMP_RIGHT_INLANE, 0);
+    RPU_SetLampState(LAMP_RIGHT_OUTLANE_EB, 0);
+  } else if (elapsedTime<2500) {
+    byte animationStep = ((elapsedTime-1796)/30)%LAMP_ANIMATION_STEPS;
+    ShowLampAnimationSingleStep(1, animationStep);
+  } 
+  return true;
+}
 
 
 #define LAMP_ANIMATIONS_H
