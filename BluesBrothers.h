@@ -109,8 +109,8 @@
 #define NUM_PRIORITY_SWITCHES_WITH_TRIGGERS 4 // This number should match the define above
 
 struct PlayfieldAndCabinetSwitch SolenoidAssociatedSwitches[] = {
-  { SW_RIGHT_SLING, SOL_RIGHT_SLING, 4},
-  { SW_LEFT_SLING, SOL_LEFT_SLING, 4},
-  { SW_TOP_SLING, SOL_TOP_SLING, 4},
+  { SW_RIGHT_SLING, SOL_RIGHT_SLING, 6},
+  { SW_LEFT_SLING, SOL_LEFT_SLING, 6},
+  { SW_TOP_SLING, SOL_TOP_SLING, 6},
   { SW_POP_BUMPER, SOL_POP_BUMPER, 4}
 };
