@@ -18,7 +18,7 @@
 #include <EEPROM.h>
 
 #define GAME_MAJOR_VERSION  2024
-#define GAME_MINOR_VERSION  5
+#define GAME_MINOR_VERSION  6
 #define DEBUG_MESSAGES  1
 
 /*********************************************************************
@@ -294,6 +294,7 @@ byte LastGameMode = 0;
 byte MaxTiltWarnings = 2;
 byte NumTiltWarnings = 0;
 byte CurrentAchievements[RPU_NUMBER_OF_PLAYERS_ALLOWED];
+byte NumberOfBallSavesRemaining;
 
 boolean SamePlayerShootsAgain = false;
 boolean BallSaveUsed = false;
@@ -496,14 +497,14 @@ void ReadStoredParameters() {
   LockHandling = LOCK_HANDLING_LOCK_STEALING;
   ElwoodClearsToQualify = 2;
   JakeClearsToQualify = 1;
-  BallSaveOnMinimodes = 5;
-  BallSaveOnMultiball = 5;
+  BallSaveOnMinimodes = 10;
+  BallSaveOnMultiball = 10;
   RightFlipsForAddABall = 3;
   SpinnerHitsToQualifyBand = 500;
   ResetJakeProgressEachBall = true;
   ResetElwoodProgressEachBall = true;
   OneBankFirstClear = true;
-  
+
 }
 
 
@@ -617,7 +618,7 @@ void setup() {
   RPU_SetSwitchInversion(SW_DROP_R_2);
   RPU_SetSwitchInversion(SW_DROP_R_3);
 
-  Audio.QueueSound(SOUND_EFFECT_STARTUP_1 + CurrentTime%2, AUDIO_PLAY_TYPE_WAV_TRIGGER, CurrentTime + 1200);
+  Audio.QueueSound(SOUND_EFFECT_STARTUP_1 + CurrentTime % 2, AUDIO_PLAY_TYPE_WAV_TRIGGER, CurrentTime + 1200);
   MachineLocks = 0;
   RPU_PushToTimedSolenoidStack(SOL_LIFT_GATE, 5, CurrentTime + 3000, true);
 }
@@ -668,15 +669,15 @@ void ShowBonusLamps() {
     RPU_SetLampState(LAMP_BONUS_5, 0);
     RPU_SetLampState(LAMP_BONUS_6, 0);
     RPU_SetLampState(LAMP_SPECIAL, 0);
-  } else if (GameMode==GAME_MODE_MULTIBALL_3_START) {
-    byte lampPhase = (CurrentTime/150)%8;
-    RPU_SetLampState(LAMP_BONUS_1, lampPhase==0);
-    RPU_SetLampState(LAMP_BONUS_2, lampPhase==1);
-    RPU_SetLampState(LAMP_BONUS_3, lampPhase==2);
-    RPU_SetLampState(LAMP_BONUS_4, lampPhase==3);
-    RPU_SetLampState(LAMP_BONUS_5, lampPhase==4);
-    RPU_SetLampState(LAMP_BONUS_6, lampPhase==5);
-    RPU_SetLampState(LAMP_SPECIAL, lampPhase==6);
+  } else if (GameMode == GAME_MODE_MULTIBALL_3_START) {
+    byte lampPhase = (CurrentTime / 150) % 8;
+    RPU_SetLampState(LAMP_BONUS_1, lampPhase == 0);
+    RPU_SetLampState(LAMP_BONUS_2, lampPhase == 1);
+    RPU_SetLampState(LAMP_BONUS_3, lampPhase == 2);
+    RPU_SetLampState(LAMP_BONUS_4, lampPhase == 3);
+    RPU_SetLampState(LAMP_BONUS_5, lampPhase == 4);
+    RPU_SetLampState(LAMP_BONUS_6, lampPhase == 5);
+    RPU_SetLampState(LAMP_SPECIAL, lampPhase == 6);
   } else {
     RPU_SetLampState(LAMP_SPECIAL, 0);
     byte bonusToShow = Bonus[CurrentPlayer];
@@ -719,7 +720,7 @@ void ShowBonusLamps() {
     for (byte count = 0; count < 6; count++) {
       if (!lampShown[count]) RPU_SetLampState(BonusLampAssignments[count], 0);
     }
-    
+
   }
 
 }
@@ -727,15 +728,15 @@ void ShowBonusLamps() {
 
 void ShowPopBumperAndSlingLamps() {
   RPU_SetLampState(LAMP_POP_WHITE_DOWN, 1);
-  if (GameMode==GAME_MODE_MINIMODE) {
-    byte lampPhase = (CurrentTime/375)%3;
-    RPU_SetLampState(LAMP_POP_WHITE_DOWN, lampPhase==0);
-    RPU_SetLampState(LAMP_POP_SMALL_BLUE, lampPhase==1);
-    RPU_SetLampState(LAMP_POP_BLUE_UP, lampPhase==2);
+  if (GameMode == GAME_MODE_MINIMODE) {
+    byte lampPhase = (CurrentTime / 375) % 3;
+    RPU_SetLampState(LAMP_POP_WHITE_DOWN, lampPhase == 0);
+    RPU_SetLampState(LAMP_POP_SMALL_BLUE, lampPhase == 1);
+    RPU_SetLampState(LAMP_POP_BLUE_UP, lampPhase == 2);
 
-    lampPhase = (CurrentTime/187)%8;
-    RPU_SetLampState(LAMP_LEFT_SLING, lampPhase<2 || lampPhase==4 || lampPhase==6);
-    RPU_SetLampState(LAMP_RIGHT_SLING, lampPhase==2 || lampPhase==3 || lampPhase==5 || lampPhase==7);
+    lampPhase = (CurrentTime / 187) % 8;
+    RPU_SetLampState(LAMP_LEFT_SLING, lampPhase < 2 || lampPhase == 4 || lampPhase == 6);
+    RPU_SetLampState(LAMP_RIGHT_SLING, lampPhase == 2 || lampPhase == 3 || lampPhase == 5 || lampPhase == 7);
   } else {
     RPU_SetLampState(LAMP_POP_WHITE_DOWN, 1);
     if (LastTimePopHit) {
@@ -755,9 +756,9 @@ void ShowPopBumperAndSlingLamps() {
 
 void ShowStandupTargetLamps() {
 
-  if (GameMode == GAME_MODE_MINIMODE && (MiniModesRunning[CurrentPlayer]&JAKE_MINIMODE_FLAG)) {
+  if ((MiniModesRunning[CurrentPlayer]&JAKE_MINIMODE_FLAG)) {
     for (byte count = 0; count < 4; count++) {
-      RPU_SetLampState(JakeLampAssignments[count], count==JakeTargetLit, 0, 25);
+      RPU_SetLampState(JakeLampAssignments[count], count == JakeTargetLit, 0, 25);
     }
   } else {
     byte jakeFlag = 0x01;
@@ -769,21 +770,21 @@ void ShowStandupTargetLamps() {
 }
 
 void ShowLoopSpinnerAndLockLamps() {
-  if (GameMode==GAME_MODE_MULTIBALL_3_START) {
-    byte lampPhase = (CurrentTime/150)%8;
-    RPU_SetLampState(LAMP_LEFT_SPINNER, lampPhase==7, 0, 25);
-    RPU_SetLampState(LAMP_HIDE_AWAY, 0);  
+  if (GameMode == GAME_MODE_MULTIBALL_3_START) {
+    byte lampPhase = (CurrentTime / 150) % 8;
+    RPU_SetLampState(LAMP_LEFT_SPINNER, lampPhase == 7, 0, 25);
+    RPU_SetLampState(LAMP_HIDE_AWAY, 0);
     RPU_SetLampState(LAMP_CAPTIVE_BALL, 1, 0, 25);
     RPU_SetLampState(LAMP_BEHIND_CAPTIVE, 1, 0, 25);
   } else {
-    if (GameMode==GAME_MODE_MINIMODE && (MiniModesRunning[CurrentPlayer]&BAND_MINIMODE_FLAG)) {
+    if ((MiniModesRunning[CurrentPlayer]&BAND_MINIMODE_FLAG)) {
       RPU_SetLampState(LAMP_LEFT_SPINNER, 1, 0, 25);
     } else {
       RPU_SetLampState(LAMP_LEFT_SPINNER, LeftSpinnerLitTime ? true : false, 0, 150);
     }
     RPU_SetLampState(LAMP_HIDE_AWAY, 0);
-  
-    if (TopGateAvailableTime && CurrentTime>TopGateAvailableTime && LeftDropTargets.GetStatus()&0x02) {
+
+    if (TopGateAvailableTime && CurrentTime > TopGateAvailableTime && LeftDropTargets.GetStatus() & 0x02) {
       RPU_SetLampState(LAMP_CAPTIVE_BALL, 1, 0, 600);
       RPU_SetLampState(LAMP_BEHIND_CAPTIVE, 1, 0, 75);
     } else {
@@ -797,12 +798,12 @@ void ShowDropTargetLamps() {
   if (GameMode == GAME_MODE_SKILL_SHOT) {
     byte elwoodFlag = 0x01;
     for (byte count = 0; count < 6; count++) {
-      RPU_SetLampState(ElwoodLampAssignments[count], count==SkillshotLetter, 0, 75);
+      RPU_SetLampState(ElwoodLampAssignments[count], count == SkillshotLetter, 0, 75);
       elwoodFlag *= 2;
     }
-  } else if (GameMode == GAME_MODE_MINIMODE && (MiniModesRunning[CurrentPlayer]&ELWOOD_MINIMODE_FLAG)) {
+  } else if ((MiniModesRunning[CurrentPlayer]&ELWOOD_MINIMODE_FLAG)) {
     for (byte count = 0; count < 6; count++) {
-      RPU_SetLampState(ElwoodLampAssignments[count], count==ElwoodTargetLit, 0, 25);
+      RPU_SetLampState(ElwoodLampAssignments[count], count == ElwoodTargetLit, 0, 25);
     }
   } else {
     byte elwoodFlag = 0x01;
@@ -814,7 +815,7 @@ void ShowDropTargetLamps() {
 }
 
 void ShowLaneLamps() {
-  if (LeftGateAvailableTime && CurrentTime>LeftGateAvailableTime) {
+  if (LeftGateAvailableTime && CurrentTime > LeftGateAvailableTime) {
     RPU_SetLampState(LAMP_OPEN_SAVE_GATE, 1, 0, 800);
   } else {
     RPU_SetLampState(LAMP_OPEN_SAVE_GATE, 0);
@@ -823,7 +824,7 @@ void ShowLaneLamps() {
 
   if (LeftGateCloseTime) {
     unsigned short flashRate = 0;
-    if ((CurrentTime+3000) > LeftGateCloseTime) {
+    if ((CurrentTime + 3000) > LeftGateCloseTime) {
       flashRate = 100;
     }
     RPU_SetLampState(LAMP_LEFT_OUTLANE, 1, 0, flashRate);
@@ -991,6 +992,19 @@ void IncreasePlayfieldMultiplier(unsigned long duration) {
   }
 }
 
+
+void SetBallSave(unsigned long duration, byte numberOfSaves = 0xFF, boolean addToBallSave = false) {
+
+  if (duration == 0) {
+    BallSaveEndTime = 0;
+    NumberOfBallSavesRemaining = 0;
+  } else if (addToBallSave) {
+    if (BallSaveEndTime) BallSaveEndTime += duration;
+  } else {
+    BallSaveEndTime = CurrentTime + duration;
+    NumberOfBallSavesRemaining = numberOfSaves;
+  }
+}
 
 
 #define ADJ_TYPE_LIST                 1
@@ -1655,17 +1669,61 @@ void IncreaseBonusX() {
 
 }
 
+void UpdateLockStatus(boolean releaseMachineLocks = false) {
+
+  if (DEBUG_MESSAGES) {
+    char buf[128];
+    sprintf(buf, "Update locks before: ML=0x%02X, PL=0x%02X\n", MachineLocks, PlayerLocks[CurrentPlayer]);
+    Serial.write(buf);
+  }
+
+  if (releaseMachineLocks) {
+    MachineLocks = 0;
+    NumberOfBallsLocked = 0;
+  }
+
+  if (LockHandling != LOCK_HANDLING_VIRTUAL_LOCKS) {
+    if ( (PlayerLocks[CurrentPlayer]&BALL_1_LOCKED) && (MachineLocks & BALL_1_LOCKED) == 0 ) {
+      // if the player had a lock but it has been rejected,
+      // then we should move that player's lock to available
+      PlayerLocks[CurrentPlayer] &= ~BALL_1_LOCKED;
+      PlayerLocks[CurrentPlayer] |= BALL_1_LOCK_AVAILABLE;
+    }
+
+    if ( (PlayerLocks[CurrentPlayer]&BALL_2_LOCKED) && (MachineLocks & BALL_2_LOCKED) == 0 ) {
+      // if the player had a lock but it has been rejected,
+      // then we should move that player's lock to available
+      PlayerLocks[CurrentPlayer] &= ~BALL_2_LOCKED;
+      PlayerLocks[CurrentPlayer] |= BALL_2_LOCK_AVAILABLE;
+    }
+  }
+
+  if (DEBUG_MESSAGES) {
+    char buf[128];
+    sprintf(buf, "Update locks after: ML=0x%02X, PL=0x%02X\n", MachineLocks, PlayerLocks[CurrentPlayer]);
+    Serial.write(buf);
+  }
+
+}
+
 unsigned long GameStartNotificationTime = 0;
 boolean WaitForBallToReachOuthole = false;
 unsigned long UpperBallEjectTime = 0;
 
 int InitGamePlay(boolean curStateChanged) {
-  RPU_TurnOffAllLamps();
-  SetGeneralIlluminationOn(true);
 
   if (curStateChanged) {
+    RPU_TurnOffAllLamps();
+    SetGeneralIlluminationOn(true);
     GameStartNotificationTime = CurrentTime;
+    Audio.StopAllAudio();
+    for (byte count = 0; count < RPU_NUMBER_OF_PLAYERS_ALLOWED; count++) RPU_SetDisplayBlank(count, 0x00);
+    RPU_SetDisplayCredits(0, false);
+    RPU_SetDisplayBallInPlay(1, true);
   }
+
+  boolean showBIP = (CurrentTime / 100) % 2;
+  RPU_SetDisplayBallInPlay(1, showBIP ? true : false);
 
   if (RPU_ReadSingleSwitchState(SW_VUK)) {
     RPU_PushToSolenoidStack(SOL_VUK, VUK_SOLENOID_STRENGTH, true);
@@ -1677,7 +1735,7 @@ int InitGamePlay(boolean curStateChanged) {
   }
 
   byte ballInShooterLane = RPU_ReadSingleSwitchState(SW_SHOOTER_LANE) ? 1 : 0;
-  if ( (CountBallsInTrough()+ballInShooterLane) < TotalBallsLoaded ) {
+  if ( (CountBallsInTrough() + ballInShooterLane) < TotalBallsLoaded ) {
 
     if (CurrentTime > (GameStartNotificationTime + 5000)) {
       GameStartNotificationTime = CurrentTime;
@@ -1724,9 +1782,11 @@ int InitGamePlay(boolean curStateChanged) {
   LastTimePopHit = 0;
   LastTiltWarningTime = 0;
   ShowPlayerScores(0xFF, false, false);
+  RPU_PushToSolenoidStack(SOL_TOP_GATE_CLOSE, 20);
 
   return MACHINE_STATE_INIT_NEW_BALL;
 }
+
 
 
 byte PlayerUpLamps[4] = {LAMP_HEAD_PLAYER_1_UP, LAMP_HEAD_PLAYER_2_UP, LAMP_HEAD_PLAYER_3_UP, LAMP_HEAD_PLAYER_4_UP};
@@ -1747,8 +1807,8 @@ int InitNewBall(bool curStateChanged) {
 
     RPU_SetDisplayBallInPlay(CurrentBallInPlay);
     RPU_SetLampState(LAMP_HEAD_TILT, 0);
-    for (byte count=0; count<4; count++) {
-      RPU_SetLampState(PlayerUpLamps[count], count==CurrentPlayer, 0, 500);
+    for (byte count = 0; count < 4; count++) {
+      RPU_SetLampState(PlayerUpLamps[count], count == CurrentPlayer, 0, 500);
     }
 
     if (BallSaveNumSeconds > 0) {
@@ -1774,7 +1834,7 @@ int InitNewBall(bool curStateChanged) {
     BonusX[CurrentPlayer] = 1;
     ResetDisplayTrackingVariables();
 
-    BallSaveEndTime = 0;
+    SetBallSave(0);
     MiniModesRunning[CurrentPlayer] = 0;
     MiniModesQualified[CurrentPlayer] = 0;
     MiniModeQualifiedExpiration = 0;
@@ -1799,7 +1859,7 @@ int InitNewBall(bool curStateChanged) {
     LastSpinnerSeen = 0xFF;
     LastSpinnerHitTime = 0;
     SpinnerProgress = 0;
-    LeftGateAvailableTime = CurrentTime;    
+    LeftGateAvailableTime = CurrentTime;
     LeftGateCloseTime = 0;
     TopGateAvailableTime = CurrentTime;
     TopGateCloseTime = 0;
@@ -1815,25 +1875,22 @@ int InitNewBall(bool curStateChanged) {
     if (!RPU_ReadSingleSwitchState(SW_SHOOTER_LANE)) RPU_PushToTimedSolenoidStack(SOL_SERVE_BALL, BALL_SERVE_SOLENOID_STRENGTH, CurrentTime + 1000);
     LastShooterKickTime = 0;
     NumberOfBallsInPlay = 1;
+    if (DEBUG_MESSAGES) {
+      Serial.write("Init new ball - number of BIP=1\n");
+    }
     SkillshotLetter = 0;
     RPU_SetLampState(LAMP_LAUNCH_BUTTON, 1, 0, 150);
     BallLaunched = false;
 
 
     // Reallocate locks
-    if ( (PlayerLocks[CurrentPlayer]&BALL_LOCKS_MASK) > MachineLocks) {
-      // If the machine locks have been used, unset them
-      byte qualifiedLocks = PlayerLocks[CurrentPlayer] & BALL_LOCKS_AVAILABLE_MASK;
-      byte survivingLocks = PlayerLocks[CurrentPlayer] & MachineLocks;
-      byte locksMoved = (PlayerLocks[CurrentPlayer] & ~MachineLocks) * 16;
-      PlayerLocks[CurrentPlayer] = qualifiedLocks | locksMoved | survivingLocks;
-    }
+    UpdateLockStatus();
 
     PlayBackgroundSong(SOUND_EFFECT_RALLY_MUSIC_1);
   }
 
   if (CountBallsInTrough() == (TotalBallsLoaded - NumberOfBallsLocked)) {
-    UpdateLiftGate();    
+    UpdateLiftGate();
     return MACHINE_STATE_INIT_NEW_BALL;
   } else {
     LiftGateReleaseRequestTime = 0;
@@ -1879,12 +1936,15 @@ void UpdateDropTargets() {
 
 void UpdateMachineLocks() {
   if (RPU_ReadSingleSwitchState(SW_TRAP)) {
-    if (TrapSwitchClosedTime==0) TrapSwitchClosedTime = CurrentTime;
-    if (CurrentTime > (TrapSwitchClosedTime+1500)) {
+    if (TrapSwitchClosedTime == 0) TrapSwitchClosedTime = CurrentTime;
+    if (CurrentTime > (TrapSwitchClosedTime + 1500)) {
+      TrapSwitchClosedTime = CurrentTime;
       // There's a ball in the trap
-      if ( (MachineLocks&BALL_2_LOCKED)==0 ) {
-        // We haven't seen this trapped ball before
-        SetGameMode(GAME_MODE_LOCK_BALL_2);
+      if ( (MachineLocks & BALL_2_LOCKED) == 0 ) {
+        if (GameMode != GAME_MODE_MULTIBALL_3_START && GameMode != GAME_MODE_MULTIBALL_3) {
+          // We haven't seen this trapped ball before
+          SetGameMode(GAME_MODE_LOCK_BALL_2);
+        }
       }
     }
   } else {
@@ -1901,24 +1961,26 @@ void ReleaseLiftGate() {
     if (CurrentTime > (LiftGateLastReleaseTime + 10000)) {
       LiftGateReleaseRequestTime = CurrentTime;
     } else {
-      LiftGateReleaseRequestTime = LiftGateLastReleaseTime + 10000;      
+      LiftGateReleaseRequestTime = LiftGateLastReleaseTime + 10000;
     }
   }
 }
 
 
+
 void UpdateLiftGate() {
-  if (LiftGateReleaseRequestTime!=0 && CurrentTime > LiftGateReleaseRequestTime) {
+  if (LiftGateReleaseRequestTime != 0 && CurrentTime > LiftGateReleaseRequestTime) {
     LiftGateReleaseRequestTime = 0;
     LiftGateLastReleaseTime = CurrentTime;
+    UpdateLockStatus(true);
     RPU_PushToSolenoidStack(SOL_LIFT_GATE, 10, true);
   }
 }
 
 
 void UpdateTopGate() {
-  if (GameMode==GAME_MODE_UNSTRUCTURED_PLAY || GameMode==GAME_MODE_MINIMODE) {
-    if (PlayerLocks[CurrentPlayer] & BALL_LOCKS_AVAILABLE_MASK) { 
+  if (GameMode == GAME_MODE_UNSTRUCTURED_PLAY || GameMode == GAME_MODE_MINIMODE) {
+    if (PlayerLocks[CurrentPlayer] & BALL_LOCKS_AVAILABLE_MASK) {
       if (TopGateAvailableTime && (CurrentTime > TopGateAvailableTime)) {
         PlaySoundEffect(SOUND_EFFECT_SHORT_SIREN);
         TopGateCloseTime = CurrentTime + TOP_GATE_OPEN_TIME_MS;
@@ -1927,22 +1989,27 @@ void UpdateTopGate() {
         RPU_PushToSolenoidStack(SOL_TOP_GATE_OPEN, 20);
       }
     }
-  }  
+  }
 }
 
 
 void AddABall(boolean releaseLockIfNecessary = false) {
   if (CountBallsInTrough()) {
     RPU_PushToSolenoidStack(SOL_SERVE_BALL, BALL_SERVE_SOLENOID_STRENGTH, true);
-    NumberOfBallsInPlay += 1;    
+    NumberOfBallsInPlay += 1;
+    if (DEBUG_MESSAGES) {
+      char buf[128];
+      sprintf(buf, "Add ball (one in trough), BIP=%d\n", NumberOfBallsInPlay);
+      Serial.write(buf);
+    }
   } else if (releaseLockIfNecessary) {
     if (MachineLocks) {
       ReleaseLiftGate();
-      MachineLocks = 0;
-      for (byte count=0; count<RPU_NUMBER_OF_PLAYERS_ALLOWED; count++) {
-        byte curPlayerLocksQualified = PlayerLocks[count] & BALL_LOCKS_AVAILABLE_MASK;
-        PlayerLocks[count] *= 16;
-        PlayerLocks[count] |= curPlayerLocksQualified;
+      NumberOfBallsInPlay += 1;
+      if (DEBUG_MESSAGES) {
+        char buf[128];
+        sprintf(buf, "Add ball (one in lock), BIP=%d\n", NumberOfBallsInPlay);
+        Serial.write(buf);
       }
     }
   }
@@ -1978,19 +2045,19 @@ int ManageGameMode() {
 
   if (TopGateCloseTime) {
 
-    if ( ((CurrentTime+2700) > TopGateCloseTime) && !TopGateCloseSoundPlayed ) {
+    if ( ((CurrentTime + 2700) > TopGateCloseTime) && !TopGateCloseSoundPlayed ) {
       TopGateCloseSoundPlayed = true;
-      PlaySoundEffect(SOUND_EFFECT_TOP_GATE_CLOSING);      
+      PlaySoundEffect(SOUND_EFFECT_TOP_GATE_CLOSING);
     }
-    
+
     if (CurrentTime > TopGateCloseTime) {
-      TopGateCloseTime = 0; 
+      TopGateCloseTime = 0;
       RPU_PushToSolenoidStack(SOL_TOP_GATE_CLOSE, 20);
       TopGateAvailableTime = CurrentTime + TOP_GATE_DELAY_TIME_MS;
     }
   }
 
-  if (CurrentTime > (LeftSpinnerLitTime+5000)) {
+  if (CurrentTime > (LeftSpinnerLitTime + 5000)) {
     LeftSpinnerLitTime = 0;
   }
 
@@ -2015,25 +2082,25 @@ int ManageGameMode() {
       // to unstructured play when any valid switch is
       // recorded
 
-      if (CurrentTime > (LastTimePromptPlayed+20000)) {
+      if (CurrentTime > (LastTimePromptPlayed + 20000)) {
         AlertPlayerUp();
         LastTimePromptPlayed = CurrentTime;
         ShowPlayerScores(0xFF, false, false);
         GameModeStage = 0;
       }
-      if (CurrentTime > (LastTimePromptPlayed+15000)) {
+      if (CurrentTime > (LastTimePromptPlayed + 15000)) {
         for (byte count = 0; count < RPU_NUMBER_OF_PLAYERS_ALLOWED; count++) {
-          OverrideScoreDisplay(count, ((unsigned long)CurrentPlayer+1) * 111111, DISPLAY_OVERRIDE_ANIMATION_FLUTTER);
+          OverrideScoreDisplay(count, ((unsigned long)CurrentPlayer + 1) * 111111, DISPLAY_OVERRIDE_ANIMATION_FLUTTER);
         }
       }
 
       // If we've seen a tilt before plunge, then
       // we can show a countdown timer here
       if (LastTiltWarningTime) {
-        if ( CurrentTime > (LastTiltWarningTime+30000) ) {
+        if ( CurrentTime > (LastTiltWarningTime + 30000) ) {
           LastTiltWarningTime = 0;
         } else {
-          byte secondsSinceWarning = (CurrentTime - LastTiltWarningTime)/1000;
+          byte secondsSinceWarning = (CurrentTime - LastTiltWarningTime) / 1000;
           for (byte count = 0; count < RPU_NUMBER_OF_PLAYERS_ALLOWED; count++) {
             if (count == CurrentPlayer) OverrideScoreDisplay(count, 30 - secondsSinceWarning, DISPLAY_OVERRIDE_ANIMATION_CENTER);
           }
@@ -2044,7 +2111,7 @@ int ManageGameMode() {
         ShowPlayerScores(0xFF, false, false);
       }
 
-      if (NumberOfShortPlunges>3 || BallFirstSwitchHitTime != 0) {
+      if (NumberOfShortPlunges > 3 || BallFirstSwitchHitTime != 0) {
         ShowPlayerScores(0xFF, false, false);
         SetGameMode(GAME_MODE_UNSTRUCTURED_PLAY);
       }
@@ -2060,9 +2127,9 @@ int ManageGameMode() {
         }
         SetGeneralIlluminationOn(true);
         unsigned short songNum = SOUND_EFFECT_BACKGROUND_SONG_1 + (CurrentBallInPlay - 1);
-        if (Audio.GetBackgroundSong()!=songNum) {
+        if (Audio.GetBackgroundSong() != songNum) {
           PlayBackgroundSong(songNum);
-        }          
+        }
         GameModeStage = 0;
       }
 
@@ -2081,6 +2148,7 @@ int ManageGameMode() {
 
         if (CurrentTime > MiniModeQualifiedExpiration) {
           MiniModeQualifiedExpiration = 0;
+          MiniModesQualified[CurrentPlayer] = 0;
           GameModeStage = 0;
           DisplaysNeedRefreshing = true;
         } else {
@@ -2088,7 +2156,7 @@ int ManageGameMode() {
             for (byte count = 0; count < RPU_NUMBER_OF_PLAYERS_ALLOWED; count++) {
               if (count != CurrentPlayer) OverrideScoreDisplay(count, (MiniModeQualifiedExpiration - CurrentTime) / 1000, DISPLAY_OVERRIDE_ANIMATION_CENTER);
             }
-            if (GameModeStage==0) {
+            if (GameModeStage == 0) {
               GameModeStage = 1;
               PlaySoundEffect(SOUND_EFFECT_10_SECOND_WARNING);
             }
@@ -2145,12 +2213,12 @@ int ManageGameMode() {
         }
       }
 
-      specialAnimationRunning = LampAnimationMinimodeStart( CurrentTime - GameModeStartTime, 
-                                                            (MiniModesQualified[CurrentPlayer] & JAKE_MINIMODE_FLAG) ? true : false, 
-                                                            (MiniModesQualified[CurrentPlayer] & ELWOOD_MINIMODE_FLAG) ? true : false, 
-                                                            (MiniModesQualified[CurrentPlayer] & BAND_MINIMODE_FLAG) ? true : false );
+      specialAnimationRunning = LampAnimationMinimodeStart( CurrentTime - GameModeStartTime,
+                                (MiniModesQualified[CurrentPlayer] & JAKE_MINIMODE_FLAG) ? true : false,
+                                (MiniModesQualified[CurrentPlayer] & ELWOOD_MINIMODE_FLAG) ? true : false,
+                                (MiniModesQualified[CurrentPlayer] & BAND_MINIMODE_FLAG) ? true : false );
 
-      if (RPU_ReadSingleSwitchState(SW_SHOOTER_LANE) && CurrentTime>(GameModeStartTime+1800)) {
+      if (RPU_ReadSingleSwitchState(SW_SHOOTER_LANE) && CurrentTime > (GameModeStartTime + 1800)) {
         if (GameModeStage == 0) {
           RPU_PushToSolenoidStack(SOL_SHOOTER_KICK, SHOOTER_KICK_FULL_STRENGTH, true);
           LastShooterKickTime = CurrentTime;
@@ -2161,14 +2229,14 @@ int ManageGameMode() {
       if (GameModeStage == 1 && (CurrentTime > GameModeEndTime)) {
         RPU_PushToSolenoidStack(SOL_VUK, VUK_SOLENOID_STRENGTH, true);
         PlayfieldMultiplier = 1 + CountBits(MiniModesQualified[CurrentPlayer]);
-        MiniModesRunning[CurrentPlayer] = MiniModesQualified[CurrentPlayer];       
+        MiniModesRunning[CurrentPlayer] = MiniModesQualified[CurrentPlayer];
         MiniModesQualified[CurrentPlayer] = 0;
         MiniModeQualifiedExpiration = 0;
         ElwoodTargetLit = 0;
         JakeTargetLit = 0;
         SetGameMode(GAME_MODE_MINIMODE);
         if (BallSaveOnMinimodes) {
-          BallSaveEndTime = CurrentTime + ((unsigned long)BallSaveOnMinimodes * 1000);
+          SetBallSave(((unsigned long)BallSaveOnMinimodes * 1000));
         }
       }
       break;
@@ -2178,7 +2246,8 @@ int ManageGameMode() {
         GameModeStartTime = CurrentTime;
       }
 
-      JakeTargetLit = (CurrentTime/250)%4;
+      JakeTargetLit = (CurrentTime / 250) % 4;
+      PlayfieldMultiplier = NumberOfBallsInPlay;
 
       for (byte count = 0; count < RPU_NUMBER_OF_PLAYERS_ALLOWED; count++) {
         if (count != CurrentPlayer) OverrideScoreDisplay(count, PlayfieldMultiplier, DISPLAY_OVERRIDE_SYMMETRIC_BOUNCE);
@@ -2192,7 +2261,6 @@ int ManageGameMode() {
       }
 
       if (NumberOfBallsInPlay == 1) {
-        MiniModesRunning[CurrentPlayer] = 0;
         SetGameMode(GAME_MODE_MINIMODE_END);
         DisplaysNeedRefreshing = false;
         ShowPlayerScores(0xFF, false, false);
@@ -2203,6 +2271,7 @@ int ManageGameMode() {
       if (GameModeStartTime == 0) {
         GameModeStartTime = CurrentTime;
         GameModeEndTime = CurrentTime + 1000;
+        MiniModesRunning[CurrentPlayer] = 0;
         PlayBackgroundSong(SOUND_EFFECT_BACKGROUND_SONG_1);
         PlayfieldMultiplier = 1;
       }
@@ -2217,18 +2286,23 @@ int ManageGameMode() {
         GameModeStartTime = CurrentTime;
         DisplaysNeedRefreshing = false;
         ShowPlayerScores(0xFF, false, false);
-        MachineLocks = BALL_1_LOCKED;
-        PlayerLocks[CurrentPlayer] = BALL_1_LOCKED | (PlayerLocks[CurrentPlayer]&BALL_LOCKS_AVAILABLE_MASK);
         QueueNotification(SOUND_EFFECT_VP_BALL_1_LOCKED, 10);
-        NumberOfBallsLocked = 1;
         GameModeStage = 0;
         GameModeEndTime = CurrentTime + 2000;
-        if (LockHandling==LOCK_HANDLING_VIRTUAL_LOCKS) {
+        if (LockHandling == LOCK_HANDLING_VIRTUAL_LOCKS) {
           ReleaseLiftGate();
-          MachineLocks = 0;
           GameModeStage = 1;
         } else {
+          NumberOfBallsLocked = 1;
+          MachineLocks = BALL_1_LOCKED;
           RPU_PushToTimedSolenoidStack(SOL_SERVE_BALL, BALL_SERVE_SOLENOID_STRENGTH, CurrentTime + 500);
+        }
+        PlayerLocks[CurrentPlayer] = BALL_1_LOCKED | (PlayerLocks[CurrentPlayer] & BALL_LOCKS_AVAILABLE_MASK);
+        PlayerLocks[CurrentPlayer] &= ~BALL_1_LOCK_AVAILABLE;
+        if (DEBUG_MESSAGES) {
+          char buf[128];
+          sprintf(buf, "Ball 1 lock, ML=0x%02X, PL=0x%02X\n", MachineLocks, PlayerLocks[CurrentPlayer]);
+          Serial.write(buf);
         }
       }
 
@@ -2256,13 +2330,22 @@ int ManageGameMode() {
           Serial.write(buf);
         }
         QueueNotification(SOUND_EFFECT_VP_BALL_2_LOCKED, 10);
-        MachineLocks |= BALL_2_LOCKED;
         PlayerLocks[CurrentPlayer] &= ~BALL_LOCKS_AVAILABLE_MASK;
         PlayerLocks[CurrentPlayer] |= BALL_2_LOCKED;
-        NumberOfBallsInPlay = 2;
         GameModeStage = 0;
+        if (LockHandling == LOCK_HANDLING_VIRTUAL_LOCKS) {
+          ReleaseLiftGate();
+          GameModeStage = 2;
+        } else {
+          NumberOfBallsLocked = 2;
+          MachineLocks |= BALL_2_LOCKED;
+          RPU_PushToTimedSolenoidStack(SOL_SERVE_BALL, BALL_SERVE_SOLENOID_STRENGTH, CurrentTime + 500);
+        }
+        NumberOfBallsInPlay = 1;
+        if (DEBUG_MESSAGES) {
+          Serial.write("Lock ball 2 - number of BIP=1\n");
+        }
         GameModeEndTime = CurrentTime + 2000;
-        RPU_PushToTimedSolenoidStack(SOL_SERVE_BALL, BALL_SERVE_SOLENOID_STRENGTH, CurrentTime + 500);
       }
 
       if (RPU_ReadSingleSwitchState(SW_SHOOTER_LANE)) {
@@ -2273,14 +2356,12 @@ int ManageGameMode() {
         GameModeStage = 1;
       }
 
-      if (GameModeStage==1 && CurrentTime>(LastShooterKickTime+1000) && CountBallsInTrough()) {
+      if (GameModeStage == 1 && CurrentTime > (LastShooterKickTime + 1000) && CountBallsInTrough()) {
         RPU_PushToTimedSolenoidStack(SOL_SERVE_BALL, BALL_SERVE_SOLENOID_STRENGTH, CurrentTime + 500);
         GameModeStage = 0;
       }
 
-      if (GameModeStage == 1 && (CurrentTime > GameModeEndTime)) {
-        NumberOfBallsLocked = 2;
-        NumberOfBallsInPlay = 1;
+      if (GameModeStage >= 1 && (CurrentTime > GameModeEndTime)) {
         if (DEBUG_MESSAGES) {
           char buf[128];
           sprintf(buf, "Ball 2 lock end, ML=0x%02X, PL=0x%02X\n", MachineLocks, PlayerLocks[CurrentPlayer]);
@@ -2292,22 +2373,23 @@ int ManageGameMode() {
 
     case GAME_MODE_MULTIBALL_3_START:
       if (GameModeStartTime == 0) {
+        MiniModesQualified[CurrentPlayer] = 0;
+        MiniModeQualifiedExpiration = 0;
         GameModeStartTime = CurrentTime;
         GameModeStage = 0;
         GameModeEndTime = CurrentTime + 25000;
         Multiball3StartShotHit = false;
         Multiball3StartAward = 10000;
+        SetBallSave(25000);
       }
-      BallSaveEndTime = GameModeEndTime;
 
-      if (CurrentTime<GameModeEndTime) Multiball3StartAward = ((((GameModeEndTime - CurrentTime)/1000) + 1) * 1000) + 10000;
-      else Multiball3StartAward = 10000;
-      
       if (Multiball3StartShotHit) {
         DisplaysNeedRefreshing = false;
         ShowPlayerScores(0xFF, false, false);
         SetGameMode(GAME_MODE_MULTIBALL_3);
       } else {
+        if (CurrentTime < GameModeEndTime) Multiball3StartAward = ((((GameModeEndTime - CurrentTime) / 1000) + 1) * 1000) + 10000;
+        else Multiball3StartAward = 10000;
         for (byte count = 0; count < RPU_NUMBER_OF_PLAYERS_ALLOWED; count++) {
           if (count != CurrentPlayer) OverrideScoreDisplay(count, Multiball3StartAward, DISPLAY_OVERRIDE_ANIMATION_FLUTTER);
         }
@@ -2320,22 +2402,29 @@ int ManageGameMode() {
         SetGameMode(GAME_MODE_MULTIBALL_3);
       }
       break;
-    
+
     case GAME_MODE_MULTIBALL_3:
       if (GameModeStartTime == 0) {
+        if (DEBUG_MESSAGES) {
+          Serial.write("MB3 start\n");
+        }
         GameModeStartTime = CurrentTime;
         StartScoreAnimation(Multiball3StartAward);
         PlaySoundEffect(SOUND_EFFECT_JAIL_BREAK);
         ReleaseLiftGate();
-        BallSaveEndTime = CurrentTime + (15000);
         NumberOfBallsInPlay = 3;
+        if (DEBUG_MESSAGES) {
+          Serial.write("MB3 - number of BIP=3\n");
+        }
+        MachineLocks = 0;
+        PlayerLocks[CurrentPlayer] = 0;
         NumberOfBallsLocked = 0;
         unsigned short songNum = SOUND_EFFECT_MULTIBALL_SONG_1;
         PlayBackgroundSong(songNum);
-        BallSaveEndTime = CurrentTime + ((unsigned long)BallSaveOnMultiball) * 1000;
+        SetBallSave((unsigned long)BallSaveOnMultiball * 1000);
       }
 
-      PlayfieldMultiplier = NumberOfBallsInPlay;
+      PlayfieldMultiplier = NumberOfBallsInPlay + CountBits(MiniModesRunning[CurrentPlayer]);
 
       for (byte count = 0; count < RPU_NUMBER_OF_PLAYERS_ALLOWED; count++) {
         if (count != CurrentPlayer) OverrideScoreDisplay(count, PlayfieldMultiplier, DISPLAY_OVERRIDE_SYMMETRIC_BOUNCE);
@@ -2349,7 +2438,11 @@ int ManageGameMode() {
       }
 
       if (NumberOfBallsInPlay == 1) {
-        SetGameMode(GAME_MODE_UNSTRUCTURED_PLAY);
+        if (MiniModesRunning[CurrentPlayer]) {
+          SetGameMode(GAME_MODE_MINIMODE_END);
+        } else {
+          SetGameMode(GAME_MODE_UNSTRUCTURED_PLAY);
+        }
         DisplaysNeedRefreshing = false;
         ShowPlayerScores(0xFF, false, false);
       }
@@ -2400,11 +2493,11 @@ int ManageGameMode() {
             BallTimeInTrough = CurrentTime;
             returnState = MACHINE_STATE_NORMAL_GAMEPLAY;
 
-            // Only 1 ball save if one ball in play
-            if (NumberOfBallsInPlay == 1) {
-              BallSaveEndTime = CurrentTime + 1000;
-            } else {
-              if (CurrentTime > BallSaveEndTime) BallSaveEndTime += 1000;
+            if (NumberOfBallSavesRemaining && NumberOfBallSavesRemaining != 0xFF) {
+              NumberOfBallSavesRemaining -= 1;
+              if (NumberOfBallSavesRemaining == 0) {
+                BallSaveEndTime = 0;
+              }
             }
 
           } else {
@@ -2413,12 +2506,12 @@ int ManageGameMode() {
             if (NumberOfBallsInPlay == 0) {
 
               // if we don't hold locks, release them
-              if (LockHandling==LOCK_HANDLING_PURGE_LOCKS) {
+              if (LockHandling == LOCK_HANDLING_PURGE_LOCKS) {
                 ReleaseLiftGate();
                 MachineLocks = 0;
                 NumberOfBallsLocked = 0;
               }
-              
+
               ShowPlayerScores(0xFF, false, false);
               Audio.StopAllAudio();
               returnState = MACHINE_STATE_COUNTDOWN_BONUS;
@@ -2738,8 +2831,8 @@ int HandleSystemSwitches(int curState, byte switchHit) {
 
 void QualifyMiniMode(byte miniModeFlag) {
   // Can't qualify a minimode while you're in a minimode
-  if (GameMode==GAME_MODE_MINIMODE) return;
-  
+  if (GameMode == GAME_MODE_MINIMODE || GameMode == GAME_MODE_MULTIBALL_3_START || GameMode == GAME_MODE_MULTIBALL_3) return;
+
   if ( (MiniModesQualified[CurrentPlayer]&miniModeFlag) == 0) {
     MiniModesQualified[CurrentPlayer] |= miniModeFlag;
     if (miniModeFlag == ELWOOD_MINIMODE_FLAG) QueueNotification(SOUND_EFFECT_VP_ELWOOD_MINIMODE_QUALIFIED, 8);
@@ -2765,20 +2858,20 @@ void HandleLeftDropTarget(byte switchHit) {
   boolean soundPlayed = false;
   boolean scoreAdded = false;
 
-  if (GameMode==GAME_MODE_SKILL_SHOT && SkillshotLetter < 3) {
-    if (  (SkillshotLetter==0 && switchHit==SW_DROP_L_1) ||
-          (SkillshotLetter==1 && switchHit==SW_DROP_L_2) || 
-          (SkillshotLetter==2 && switchHit==SW_DROP_L_3) ) {
+  if (GameMode == GAME_MODE_SKILL_SHOT && SkillshotLetter < 3) {
+    if (  (SkillshotLetter == 0 && switchHit == SW_DROP_L_1) ||
+          (SkillshotLetter == 1 && switchHit == SW_DROP_L_2) ||
+          (SkillshotLetter == 2 && switchHit == SW_DROP_L_3) ) {
       NumberOfSkillshotsMade[CurrentPlayer] += 1;
       StartScoreAnimation(50000 * ((unsigned long)NumberOfSkillshotsMade[CurrentPlayer]));
       PlaySoundEffect(SOUND_EFFECT_CORRECT_MODE_SHOT);
     } else {
       PlaySoundEffect(SOUND_EFFECT_MISSED_MODE_SHOT);
     }
-  } else if (GameMode==GAME_MODE_MINIMODE && (MiniModesRunning[CurrentPlayer]&ELWOOD_MINIMODE_FLAG)) {
-    if (  (ElwoodTargetLit==0 && switchHit==SW_DROP_L_1) ||
-          (ElwoodTargetLit==1 && switchHit==SW_DROP_L_2) || 
-          (ElwoodTargetLit==2 && switchHit==SW_DROP_L_3) ) {
+  } else if ((MiniModesRunning[CurrentPlayer]&ELWOOD_MINIMODE_FLAG)) {
+    if (  (ElwoodTargetLit == 0 && switchHit == SW_DROP_L_1) ||
+          (ElwoodTargetLit == 1 && switchHit == SW_DROP_L_2) ||
+          (ElwoodTargetLit == 2 && switchHit == SW_DROP_L_3) ) {
       ElwoodTargetLit += 1;
       PlaySoundEffect(SOUND_EFFECT_CORRECT_MODE_SHOT);
       CurrentScores[CurrentPlayer] += 5000 * PlayfieldMultiplier;
@@ -2840,26 +2933,26 @@ void HandleRightDropTarget(byte switchHit) {
   boolean soundPlayed = false;
   boolean scoreAdded = false;
 
-  if (GameMode==GAME_MODE_SKILL_SHOT && SkillshotLetter > 2) {
-    if (  (SkillshotLetter==3 && switchHit==SW_DROP_R_1) ||
-          (SkillshotLetter==4 && switchHit==SW_DROP_R_2) || 
-          (SkillshotLetter==5 && switchHit==SW_DROP_R_3) ) {
+  if (GameMode == GAME_MODE_SKILL_SHOT && SkillshotLetter > 2) {
+    if (  (SkillshotLetter == 3 && switchHit == SW_DROP_R_1) ||
+          (SkillshotLetter == 4 && switchHit == SW_DROP_R_2) ||
+          (SkillshotLetter == 5 && switchHit == SW_DROP_R_3) ) {
       NumberOfSkillshotsMade[CurrentPlayer] += 1;
       StartScoreAnimation(50000 * ((unsigned long)NumberOfSkillshotsMade[CurrentPlayer]));
       PlaySoundEffect(SOUND_EFFECT_CORRECT_MODE_SHOT);
     } else {
       PlaySoundEffect(SOUND_EFFECT_MISSED_MODE_SHOT);
     }
-  } else if (GameMode==GAME_MODE_MINIMODE && (MiniModesRunning[CurrentPlayer]&ELWOOD_MINIMODE_FLAG)) {
-    if (  (ElwoodTargetLit==3 && switchHit==SW_DROP_R_1) ||
-          (ElwoodTargetLit==4 && switchHit==SW_DROP_R_2) || 
-          (ElwoodTargetLit==5 && switchHit==SW_DROP_R_3) ) {
+  } else if ((MiniModesRunning[CurrentPlayer]&ELWOOD_MINIMODE_FLAG)) {
+    if (  (ElwoodTargetLit == 3 && switchHit == SW_DROP_R_1) ||
+          (ElwoodTargetLit == 4 && switchHit == SW_DROP_R_2) ||
+          (ElwoodTargetLit == 5 && switchHit == SW_DROP_R_3) ) {
       ElwoodTargetLit += 1;
-      if (ElwoodTargetLit>5) {
+      if (ElwoodTargetLit > 5) {
         ElwoodTargetLit = 0;
         StartScoreAnimation(ELWOOD_MINIMODE_COMPLETION_BONUS);
         PlaySoundEffect(SOUND_EFFECT_DROP_TARGET_BONUS_SOUND);
-      } else {      
+      } else {
         PlaySoundEffect(SOUND_EFFECT_CORRECT_MODE_SHOT);
         CurrentScores[CurrentPlayer] += 5000 * PlayfieldMultiplier;
       }
@@ -2869,7 +2962,7 @@ void HandleRightDropTarget(byte switchHit) {
     }
     return;
   }
-  
+
   boolean cleared = RightDropTargets.CheckIfBankCleared();
   boolean readyToClearBoth = false;
   if (cleared) {
@@ -2907,27 +3000,21 @@ void HandleRightDropTarget(byte switchHit) {
   }
   if (!scoreAdded) {
     CurrentScores[CurrentPlayer] += PlayfieldMultiplier * numTargetsDown * 100;
-  }  
+  }
 }
 
 
 void HandleJakeStandup(byte switchHit) {
 
   byte jakeNum = switchHit - SW_STANDUP_J;
-  if ( CurrentTime < (LastJakeHit[jakeNum]+500) ) return;
-  
+  if ( CurrentTime < (LastJakeHit[jakeNum] + 500) ) return;
+
   LastJakeHit[jakeNum] = CurrentTime;
 
   byte prevStatus = JakeStatus[CurrentPlayer];
   JakeStatus[CurrentPlayer] |= 1 << (jakeNum);
-  if (prevStatus==JakeStatus[CurrentPlayer]) CurrentScores[CurrentPlayer] += 100 * PlayfieldMultiplier;
+  if (prevStatus == JakeStatus[CurrentPlayer]) CurrentScores[CurrentPlayer] += 100 * PlayfieldMultiplier;
   else CurrentScores[CurrentPlayer] += 1000 * PlayfieldMultiplier;
-
-  if (DEBUG_MESSAGES) {
-    char buf[128];
-    sprintf(buf, "SU switch %d (0x%02X)\n", switchHit, JakeStatus[CurrentPlayer]);
-    Serial.write(buf);
-  }
 
   if (JakeStatus[CurrentPlayer] == JAKE_STATUS_COMPLETE) {
     // Qualify the Jake mini mode
@@ -2940,13 +3027,13 @@ void HandleJakeStandup(byte switchHit) {
 
   }
 
-  if (GameMode==GAME_MODE_MINIMODE && (MiniModesRunning[CurrentPlayer] & JAKE_MINIMODE_FLAG) ) {
-    if ( (switchHit-SW_STANDUP_J)==JakeTargetLit ) {
+  if ((MiniModesRunning[CurrentPlayer] & JAKE_MINIMODE_FLAG) ) {
+    if ( (switchHit - SW_STANDUP_J) == JakeTargetLit ) {
       PlaySoundEffect(SOUND_EFFECT_CORRECT_MODE_SHOT);
       CurrentScores[CurrentPlayer] += 5000 * PlayfieldMultiplier;
       JakeShotsMade[CurrentPlayer] += 1;
     } else {
-      if (CurrentTime>(LastTimeModeShotMissed+1000)) {
+      if (CurrentTime > (LastTimeModeShotMissed + 1000)) {
         PlaySoundEffect(SOUND_EFFECT_MISSED_MODE_SHOT);
         LastTimeModeShotMissed = CurrentTime;
       }
@@ -2976,7 +3063,15 @@ void HandleSpinnerProgress(boolean leftSpinnerSeen = true) {
   else LastSpinnerSeen = 1;
   LastSpinnerHitTime = CurrentTime;
 
-  if (GameMode==GAME_MODE_MINIMODE && (MiniModesRunning[CurrentPlayer]&BAND_MINIMODE_FLAG) && leftSpinnerSeen) {
+  if (GameMode == GAME_MODE_MULTIBALL_3_START && leftSpinnerSeen) {
+    Multiball3StartShotHit = true;
+    Multiball3StartAward += 5000;
+    if (DEBUG_MESSAGES) {
+      Serial.write("MB3 spinner hit\n");
+    }
+  }
+
+  if ((MiniModesRunning[CurrentPlayer]&BAND_MINIMODE_FLAG) && leftSpinnerSeen) {
     CurrentScores[CurrentPlayer] += 2500 * PlayfieldMultiplier;
     BandShotsMade[CurrentPlayer] += 1;
   } else {
@@ -2989,12 +3084,12 @@ void HandleSpinnerProgress(boolean leftSpinnerSeen = true) {
       }
       CurrentScores[CurrentPlayer] += 1000 * PlayfieldMultiplier * numBits;
     } else if (LeftSpinnerLitTime && leftSpinnerSeen) {
-      CurrentScores[CurrentPlayer] += 2000 * PlayfieldMultiplier;      
+      CurrentScores[CurrentPlayer] += 2000 * PlayfieldMultiplier;
     } else {
       CurrentScores[CurrentPlayer] += 100 * PlayfieldMultiplier;
     }
   }
-  
+
 }
 
 void HandleCaptiveBallHit() {
@@ -3007,14 +3102,17 @@ void HandleCaptiveBallHit() {
     Serial.write(buf);
   }
 
-  if ( (MachineLocks&BALL_LOCKS_MASK)==0x00 ) {
+  if ( (MachineLocks & BALL_LOCKS_MASK) == 0x00 ) {
     // No locks yet, so qualify one
-    PlayerLocks[CurrentPlayer] |= BALL_1_LOCK_AVAILABLE;
+    if (PlayerLocks[CurrentPlayer] & BALL_LOCKS_AVAILABLE_MASK) PlayerLocks[CurrentPlayer] |= BALL_2_LOCK_AVAILABLE;
+    else PlayerLocks[CurrentPlayer] |= BALL_1_LOCK_AVAILABLE;
+    // Just in case the player thinks they have a lock, clear out player locks
+    PlayerLocks[CurrentPlayer] &= ~BALL_LOCKS_MASK;
     openGate = true;
-  } else if ( (MachineLocks&BALL_LOCKS_MASK)==0x01 ) {
-    // There's one machine lock, so it either needs to be stolen 
+  } else if ( (MachineLocks & BALL_LOCKS_MASK) == 0x01 ) {
+    // There's one machine lock, so it either needs to be stolen
     // or we can qualify lock 2
-    if ( (PlayerLocks[CurrentPlayer] & BALL_LOCKS_MASK)==0x00 ) {
+    if ( (PlayerLocks[CurrentPlayer] & BALL_LOCKS_MASK) == 0x00 ) {
       // We can steal lock 1
       QueueNotification(SOUND_EFFECT_VP_LOCK_1_STOLEN, 10);
       PlayerLocks[CurrentPlayer] = BALL_1_LOCKED;
@@ -3026,29 +3124,33 @@ void HandleCaptiveBallHit() {
       // player locks than machine locks because it shouldn't
       // happen.
     }
-  } else if ( (MachineLocks&BALL_LOCKS_MASK)==0x03 ) {
-    if ( (PlayerLocks[CurrentPlayer] & BALL_LOCKS_MASK)==0x00 ) {
+  } else if ( (MachineLocks & BALL_LOCKS_MASK) == 0x03 ) {
+    if ( (PlayerLocks[CurrentPlayer] & BALL_LOCKS_MASK) == 0x00 ) {
       // We can steal lock 1
       QueueNotification(SOUND_EFFECT_VP_LOCK_1_STOLEN, 10);
       PlayerLocks[CurrentPlayer] = BALL_1_LOCKED;
-    } else if ( (PlayerLocks[CurrentPlayer] & BALL_LOCKS_MASK)==0x01 ) {
+    } else if ( (PlayerLocks[CurrentPlayer] & BALL_LOCKS_MASK) == 0x01 ) {
       // We can steal lock 2
       QueueNotification(SOUND_EFFECT_VP_LOCK_2_STOLEN, 10);
       PlayerLocks[CurrentPlayer] |= BALL_2_LOCKED;
-    } else if ( (PlayerLocks[CurrentPlayer] & BALL_LOCKS_MASK)==0x03 ) {
+    } else if ( (PlayerLocks[CurrentPlayer] & BALL_LOCKS_MASK) == 0x03 ) {
       // Start the multiball
       Multiball3StartShotHit = true;
+      Multiball3StartAward += 35000;
+      if (DEBUG_MESSAGES) {
+        Serial.write("MB3 Captive ball hit\n");
+      }
     }
   }
 
   if (openGate) {
 
     if (DEBUG_MESSAGES) {
-      char buf[128]; 
+      char buf[128];
       sprintf(buf, "Open gate: Avail=%lu, Current=%lu\n", TopGateAvailableTime, CurrentTime);
       Serial.write(buf);
     }
-    
+
     if (TopGateAvailableTime && (CurrentTime > TopGateAvailableTime)) {
       PlaySoundEffect(SOUND_EFFECT_SHORT_SIREN);
       TopGateCloseSoundPlayed = false;
@@ -3063,7 +3165,7 @@ void HandleCaptiveBallHit() {
     sprintf(buf, "Captive ball end ML=0x%02X, PL=0x%02X\n", MachineLocks, PlayerLocks[CurrentPlayer]);
     Serial.write(buf);
   }
-  
+
 
 }
 
@@ -3081,7 +3183,7 @@ void HandleGamePlaySwitches(byte switchHit) {
     case SW_RIGHT_FLIPPER:
       if (!BallLaunched) {
         SkillshotLetter += 1;
-        if (SkillshotLetter>5) SkillshotLetter = 0;
+        if (SkillshotLetter > 5) SkillshotLetter = 0;
       }
       break;
 
@@ -3091,15 +3193,16 @@ void HandleGamePlaySwitches(byte switchHit) {
         BallLaunched = true;
         if (RPU_ReadSingleSwitchState(SW_LEFT_FLIPPER)) {
           NumberOfShortPlunges += 1;
-          if (NumberOfShortPlunges<3) RPU_PushToSolenoidStack(SOL_SHOOTER_KICK, SHOOTER_KICK_LIGHT_STRENGTH, true);
+          if (NumberOfShortPlunges < 3) RPU_PushToSolenoidStack(SOL_SHOOTER_KICK, SHOOTER_KICK_LIGHT_STRENGTH, true);
           else RPU_PushToSolenoidStack(SOL_SHOOTER_KICK, SHOOTER_KICK_LIGHT_STRENGTH + 1, true);
-          if (Audio.GetBackgroundSong()==SOUND_EFFECT_RALLY_MUSIC_1) {
+          if (Audio.GetBackgroundSong() == SOUND_EFFECT_RALLY_MUSIC_1) {
             Audio.StopAllMusic();
+            PlayBackgroundSong(SOUND_EFFECT_RALLY_MUSIC_1);
             PlaySoundEffect(SOUND_EFFECT_ELECTRIC_PIANO_1);
           }
         } else {
           RPU_PushToSolenoidStack(SOL_SHOOTER_KICK, SHOOTER_KICK_FULL_STRENGTH, true);
-          if (Audio.GetBackgroundSong()==SOUND_EFFECT_RALLY_MUSIC_1) {
+          if (Audio.GetBackgroundSong() == SOUND_EFFECT_RALLY_MUSIC_1) {
             Audio.StopAllMusic();
             PlaySoundEffect(SOUND_EFFECT_TIRES_SQUEALING);
           }
@@ -3126,7 +3229,7 @@ void HandleGamePlaySwitches(byte switchHit) {
       break;
 
     case SW_CAPTIVE_BALL:
-      if (CurrentTime>(LastCaptiveBallHit+500)) {
+      if (CurrentTime > (LastCaptiveBallHit + 1000)) {
         LastCaptiveBallHit = CurrentTime;
         CurrentScores[CurrentPlayer] += 10000 * PlayfieldMultiplier;
         HandleCaptiveBallHit();
@@ -3150,7 +3253,7 @@ void HandleGamePlaySwitches(byte switchHit) {
       break;
 
     case SW_LEFT_OUTLANE:
-      if (BallSaveEndTime) BallSaveEndTime += 4000;
+      SetBallSave(4000, 0, true);
       PlaySoundEffect(SOUND_EFFECT_ELECTRIC_PIANO_4);
       CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 1000;
       AddToBonus(1);
@@ -3158,7 +3261,7 @@ void HandleGamePlaySwitches(byte switchHit) {
       break;
 
     case SW_RIGHT_OUTLANE:
-      if (BallSaveEndTime) BallSaveEndTime += 4000;
+      SetBallSave(4000, 0, true);
       PlaySoundEffect(SOUND_EFFECT_ELECTRIC_PIANO_4);
       CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 1000;
       AddToBonus(1);
@@ -3166,26 +3269,30 @@ void HandleGamePlaySwitches(byte switchHit) {
       break;
 
     case SW_RIGHT_FLIP_LANE:
-      if (GameMode==GAME_MODE_MULTIBALL_3) {
+      if (GameMode == GAME_MODE_MULTIBALL_3_START) {
         Multiball3StartShotHit = true;
-      } else if (GameMode==GAME_MODE_MINIMODE) {
+        Multiball3StartAward += 50000;
+        if (DEBUG_MESSAGES) {
+          Serial.write("MB3 Flip lane hit\n");
+        }
+      } else if (GameMode == GAME_MODE_MINIMODE) {
         byte soundToPlay = RightFlipsSeen;
-        if (soundToPlay>2) soundToPlay = 2;
+        if (soundToPlay > 2) soundToPlay = 2;
         PlaySoundEffect(SOUND_EFFECT_BAND_HIT_1 + soundToPlay);
         RightFlipsSeen += 1;
         if (!AddABallUsed) {
-          if (RightFlipsSeen==RightFlipsForAddABall) {
+          if (RightFlipsSeen == RightFlipsForAddABall) {
             AddABallUsed = true;
             AddABall(true);
           }
         }
       } else {
-        PlaySoundEffect(SOUND_EFFECT_LOOP_1 + CurrentTime%2);
+        PlaySoundEffect(SOUND_EFFECT_LOOP_1 + CurrentTime % 2);
         CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 1000;
       }
       AddToBonus(1);
       if (BallLaunched) ValidateAndRegisterPlayfieldSwitch();
-      break;    
+      break;
 
     case SW_LEFT_SLING:
     case SW_RIGHT_SLING:
@@ -3238,14 +3345,14 @@ void HandleGamePlaySwitches(byte switchHit) {
       break;
 
     case SW_TRAP:
-      if (MachineLocks==0) {
-        if ( (PlayerLocks[CurrentPlayer] & BALL_LOCKS_AVAILABLE_MASK)==0 ) {
+      if (MachineLocks == 0) {
+        if ( (PlayerLocks[CurrentPlayer] & BALL_LOCKS_AVAILABLE_MASK) == 0 ) {
           // A ball fell in the trap when the player doesn't have a lock
           // available -- need to eject the trap
           ReleaseLiftGate();
         } else {
           // This is the first ball in the trap
-          if (LockHandling==LOCK_HANDLING_VIRTUAL_LOCKS) {
+          if (LockHandling == LOCK_HANDLING_VIRTUAL_LOCKS) {
             // For virtual locks, they always appear here, so we decide
             // based on the player locks
             if (PlayerLocks[CurrentPlayer] & BALL_1_LOCKED) {
@@ -3265,8 +3372,8 @@ void HandleGamePlaySwitches(byte switchHit) {
       // Close the top gate (hide away)
       TopGateCloseTime = 0;
       RPU_PushToTimedSolenoidStack(SOL_TOP_GATE_CLOSE, 10, CurrentTime + 500, true);
-      PlaySoundEffect(SOUND_EFFECT_TOP_GATE_CLOSING);
-      if (TopGateAvailableTime==0) TopGateAvailableTime = CurrentTime + TOP_GATE_DELAY_TIME_MS;      
+      //PlaySoundEffect(SOUND_EFFECT_TOP_GATE_CLOSING);
+      if (TopGateAvailableTime == 0) TopGateAvailableTime = CurrentTime + TOP_GATE_DELAY_TIME_MS;
       if (BallLaunched) ValidateAndRegisterPlayfieldSwitch();
       break;
 
@@ -3314,7 +3421,7 @@ int RunGamePlayMode(int curState, boolean curStateChanged) {
           RPU_SetDisplay(count, CurrentScores[count], true, 2);
         }
 
-        for (byte count=0; count<4; count++) {
+        for (byte count = 0; count < 4; count++) {
           RPU_SetLampState(PlayerUpLamps[count], 0);
         }
 
