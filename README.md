@@ -4,13 +4,13 @@ Initial Ruleset
 ## Mini Modes  
 There are 3 mini modes the player can qualify & stack in order to put the band together.   
   
-**Elwood:** Two drop target clears (adjustable) will qualify Elwood. Like Stars, clearing either bank counts as the first clear and then both drop banks need to be cleared the second & successive times. Once the banks have been cleared twice, the machine announces that Elwood is qualified and the scoop (VUK) is lit to start the mode. Mode start is on a timer--after 30 seconds it's not qualified anymore and the player has to clear 2 banks again to re-qualify.  
+**Elwood:** Two drop target clears (adjustable) will qualify Elwood. Like Stars, clearing either bank counts as the first clear and then both drop banks need to be cleared the second & successive times. Once the banks have been cleared twice, the machine announces that Elwood is qualified and the scoop (VUK) is lit to start the mode. Mode start is on a timer--after 30 seconds the mode remains qualified (adjustable), but starting the mode will not bring in a playfield multiplier.
   
-**Jake:** Lighting all the JAKE standups once (configurable) will qualify the JAKE mode. The mode can be started on the scoop (VUK) within 30 seconds.
+**Jake:** Lighting all the JAKE standups once (configurable) will qualify the JAKE mode. The mode can be started with a playfield multiplier on the scoop (VUK) within 30 seconds.
 
-**Band:** Collecting 500 spins qualifies the band. Alternating spinners will increase the spin count by 10, so hitting the left then the right with the orbit shot will get to the spin count faster. After 500 spins the mode can be started on the scoop (VUK) within 30 seconds.  
+**Band:** Collecting 500 spins qualifies the band. Alternating spinners will increase the spin count by 10, so hitting the left then the right with the orbit shot will get to the spin count faster. After 500 spins the mode can be started with a playfield multiplier on the scoop (VUK) within 30 seconds.  
   
-Two or three modes can be qualified at once, and qualifying a second or third mode will add 15 seconds to the mode start hurry-up. Each mode comes with a +1 playfield multiplier and modes are played as a 2-ball multiball. Add-a-ball is available on the loop shot (above right sling) while in the mode once a mode shot has been hit.  
+Two or three modes can be qualified at once, and qualifying a second or third mode will add 15 seconds to the mode start hurry-up. Each mode comes with a +1 playfield multiplier if started before the timer expired and modes are played as a 2-ball multiball. Add-a-ball is available on the loop shot (above right sling) while in the mode once a mode shot has been hit.  
 
 ### Mode shots: 
 In Elwood mode, the player has to hit the lit drop target to score an Elwood shot.
