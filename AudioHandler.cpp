@@ -174,9 +174,9 @@ uint16_t track;
           version[VERSION_STRING_LEN - 1] = 0;
           versionRcvd = true;
           // ==========================
-          Serial.write("WAV Version: ");
-          Serial.write(version);
-          Serial.write("\n");
+//          Serial.write("WAV Version: ");
+//          Serial.write(version);
+//          Serial.write("\n");
           // ==========================
         break;
 
@@ -827,7 +827,6 @@ boolean AudioHandler::ServiceNotificationQueue(unsigned long currentTime) {
 
 
 boolean AudioHandler::StopAllNotifications(byte priority) {
-  Serial.write("Stop all notifications\n");
   ClearNotificationStack(priority);
   return StopCurrentNotification(priority);
 }
@@ -1138,6 +1137,7 @@ boolean AudioHandler::PlayBackgroundSong(unsigned short trackIndex, boolean loop
 #ifdef RPU_OS_USE_WAV_TRIGGER_1p3
     wTrig.trackPlayPoly(trackIndex, true);
     trackPlayed = true;
+    Serial.write("Playing background song\n");
 #else
     wTrig.trackPlayPoly(trackIndex);
     trackPlayed = true;

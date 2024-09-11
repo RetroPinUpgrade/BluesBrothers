@@ -28,6 +28,7 @@ byte AnimationStartSeed[4] = {0, 0, 0, 0};
 byte ScoreOverrideStatus = 0;
 byte ScoreAnimation[4] = {0, 0, 0, 0};
 byte AnimationDisplayOrder[4] = {0, 1, 2, 3};
+byte OverrideMask[4] = {0xFF, 0xFF, 0xFF, 0xFF};
 byte LastScrollPhase = 0;
 
 byte MagnitudeOfScore(unsigned long score) {
@@ -55,13 +56,14 @@ void SetLastTimeScoreChanged(unsigned long scoreChangedTime) {
 
 
 
-void OverrideScoreDisplay(byte displayNum, unsigned long value, byte animationType) {
+void OverrideScoreDisplay(byte displayNum, unsigned long value, byte animationType, byte overrideMask) {
   if (displayNum > 3) return;
 
   ScoreOverrideStatus |= (0x01 << displayNum);
   ScoreAnimation[displayNum] = animationType;
   ScoreOverrideValue[displayNum] = value;
   LastAnimationSeed[displayNum] = 255;
+  OverrideMask[displayNum] = overrideMask;
 }
 
 byte GetDisplayMask(byte numDigits) {
@@ -174,12 +176,18 @@ void ShowAnimatedValue(byte displayNum, unsigned long displayScore, byte animati
       RPU_SetDisplayBlank(displayNum, displayMask);
     }
   } else if (numDigits==1 && animationType == DISPLAY_OVERRIDE_SYMMETRIC_BOUNCE) {
+    // Timing varies based on display
     overrideAnimationSeed = CurrentTime / (100 + (displayNum%2)*38 + (displayNum/2)*20);
+
+    // If the animation frame has changed since last time
     if (overrideAnimationSeed != LastAnimationSeed[displayNum]) {
       LastAnimationSeed[displayNum] = overrideAnimationSeed;
-      byte shiftDigits = (overrideAnimationSeed)%(RPU_OS_NUM_DIGITS-1);
-      if (shiftDigits > (RPU_OS_NUM_DIGITS/2)) shiftDigits = RPU_OS_NUM_DIGITS - shiftDigits;
-      byte digitCount;
+
+      byte numSteps = RPU_OS_NUM_DIGITS - 2 + (RPU_OS_NUM_DIGITS%2);
+      
+      byte shiftDigits = (overrideAnimationSeed)%numSteps;
+      if (shiftDigits > (numSteps/2)) shiftDigits = numSteps - shiftDigits;
+        byte digitCount;
       displayMask = GetDisplayMask(numDigits);
       for (digitCount = 0; digitCount < shiftDigits; digitCount++) {
         displayScore *= 10;
@@ -200,7 +208,12 @@ void ShowAnimatedValue(byte displayNum, unsigned long displayScore, byte animati
       RPU_SetDisplayBlank(displayNum, newMask);
     }
   } else {
-    RPU_SetDisplay(displayNum, displayScore, true, 1);
+    if (OverrideMask[displayNum]==0xFF) {
+      RPU_SetDisplay(displayNum, displayScore, true, 1);
+    } else {
+      RPU_SetDisplayBlank(displayNum, OverrideMask[displayNum]);
+      RPU_SetDisplay(displayNum, displayScore, false, 1);
+    }
   }
 
 }
