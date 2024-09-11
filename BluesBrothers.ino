@@ -18,7 +18,7 @@
 #include <EEPROM.h>
 
 #define GAME_MAJOR_VERSION  2024
-#define GAME_MINOR_VERSION  8
+#define GAME_MINOR_VERSION  9
 #define DEBUG_MESSAGES  1
 
 /*********************************************************************
@@ -2092,11 +2092,8 @@ void CheckVUKForStuckBall() {
       VUKClosedStart = CurrentTime;
     } else {
       if (CurrentTime > (VUKClosedStart + 1500)) {
-
-//        if (MiniModeQualifiedExpiration != 0 && GameMode == GAME_MODE_UNSTRUCTURED_PLAY) {
         if (MiniModesQualified[CurrentPlayer] && GameMode == GAME_MODE_UNSTRUCTURED_PLAY) {
           VUKClosedStart = 0;
-          if (MiniModeQualifiedExpiration) 
           SetGameMode(GAME_MODE_MINIMODE_START);
         } else if (GameMode == GAME_MODE_MULTIBALL_3) {
           if (MB3JackpotQualified) {
@@ -2458,6 +2455,9 @@ int ManageGameMode() {
             }
             break;
           case 8:
+            for (byte count = 0; count < 6; count++) {
+              RPU_SetLampState(ElwoodLampAssignments[count], 0);
+            }            
             if (MiniModesQualified[CurrentPlayer] & JAKE_MINIMODE_FLAG) {
               QueueNotification(SOUND_EFFECT_VP_JAKE_MODE_QUALIFIED, 1);
               for (count=0; count<RPU_NUMBER_OF_PLAYERS_ALLOWED; count++) OverrideScoreDisplay(count, 0, DISPLAY_OVERRIDE_ANIMATION_CENTER, 0x00);
@@ -2465,9 +2465,6 @@ int ManageGameMode() {
               QueueNotification(SOUND_EFFECT_VP_JAKE_MODE_RUNNING, 1);
               for (count=0; count<RPU_NUMBER_OF_PLAYERS_ALLOWED; count++) OverrideScoreDisplay(count, 0, DISPLAY_OVERRIDE_ANIMATION_CENTER, 0x00);
             } else {
-              for (byte count = 0; count < 6; count++) {
-                RPU_SetLampState(ElwoodLampAssignments[count], 0);
-              }            
               QueueNotification(SOUND_EFFECT_VP_FINISH_JAKE, 1);
               if (((JakeCompletions[CurrentPlayer]+1) % JakeClearsToQualify)==4) QueueNotification(SOUND_EFFECT_VP_FIVE_MORE_TIMES, 1);
               if (((JakeCompletions[CurrentPlayer]+1) % JakeClearsToQualify)==3) QueueNotification(SOUND_EFFECT_VP_FOUR_MORE_TIMES, 1);
@@ -3123,7 +3120,7 @@ byte TotalBonusX = 0;
 byte BonusSoundIncrement;
 boolean CountdownBonusHurryUp = false;
 
-int CountDownDelayTimes[] = {130, 130, 130, 130, 130, 130, 130, 130, 130, 60};
+int CountDownDelayTimes[] = {130, 130, 130, 100, 100, 60, 60, 60, 60, 60};
 
 int CountdownBonus(boolean curStateChanged) {
 
@@ -3140,6 +3137,10 @@ int CountdownBonus(boolean curStateChanged) {
       TopGateCloseTime = 0;
       TopGateAvailableTime = 0;
       RPU_PushToSolenoidStack(SOL_TOP_GATE_CLOSE, TOP_GATE_CLOSE_SOLENOID_STRENGTH);
+    }
+
+    if (RPU_ReadSingleSwitchState(SW_VUK)) {
+      RPU_PushToSolenoidStack(SOL_VUK, VUK_SOLENOID_STRENGTH, true);      
     }
 
     CountdownStartTime = CurrentTime;
@@ -3159,6 +3160,8 @@ int CountdownBonus(boolean curStateChanged) {
     // playing sound
     //    PlaySoundEffect(SOUND_EFFECT_STOP_BACKGROUND);
   }
+
+  if (RPU_ReadSingleSwitchState(SW_LEFT_FLIPPER) && RPU_ReadSingleSwitchState(SW_RIGHT_FLIPPER)) CountdownBonusHurryUp = true;
 
   unsigned long countdownDelayTime = (unsigned long)(CountDownDelayTimes[IncrementingBonusXCounter - 1]);
   if (CountdownBonusHurryUp && countdownDelayTime > ((unsigned long)CountDownDelayTimes[9])) countdownDelayTime = CountDownDelayTimes[9];
@@ -3801,13 +3804,32 @@ void AdvanceStatusReportPage() {
 }
 
 
+void CycleBuildBonusLamps(boolean cycleLeft = true) {
+
+  byte newLamps;
+  if (cycleLeft) {
+    newLamps = BuildBonusLamps[CurrentPlayer] / 2;    
+    if (BuildBonusLamps[CurrentPlayer] & 0x01) {
+      newLamps |= 0x10;
+    }
+  } else {
+    newLamps = (BuildBonusLamps[CurrentPlayer] * 2) & 0x1F;
+    if (BuildBonusLamps[CurrentPlayer] & 0x10) {
+      newLamps |= 0x01;
+    }
+  }
+  BuildBonusLamps[CurrentPlayer] = newLamps;
+  
+}
+
+
 void HandleGamePlaySwitches(byte switchHit) {
 
   switch (switchHit) {
 
     case SW_LEFT_FLIPPER:
       if (CurrentStatusReportPage) AdvanceStatusReportPage();
-      
+      CycleBuildBonusLamps(true);
       LastFlipperSeen = CurrentTime;      
       break;
 
@@ -3818,6 +3840,7 @@ void HandleGamePlaySwitches(byte switchHit) {
           if (SkillshotLetter > 5) SkillshotLetter = 0;
         }
       }
+      CycleBuildBonusLamps(false);
       if (CurrentStatusReportPage) AdvanceStatusReportPage();
       LastFlipperSeen = CurrentTime;
       break;
