@@ -18,8 +18,12 @@
 #include <EEPROM.h>
 
 #define GAME_MAJOR_VERSION  2024
-#define GAME_MINOR_VERSION  9
+#define GAME_MINOR_VERSION  10
 #define DEBUG_MESSAGES  1
+
+#if (DEBUG_MESSAGES==1)
+//#define DEBUG_SHOW_LOOPS_PER_SECOND
+#endif
 
 /*********************************************************************
 
@@ -514,6 +518,13 @@ unsigned long Multiball3StartAward;
 unsigned long Multiball3Jackpot;
 unsigned long LastTimeModeShotMissed = 0;
 unsigned long LeftSpinnerLitTime;
+unsigned long LastFlipLaneTime;
+
+#define BUILD_BONUS_LAMP_LEFT_INLANE    0x01
+#define BUILD_BONUS_LAMP_SAUCER         0x02
+#define BUILD_BONUS_LAMP_CAPTIVE_BALL   0x04
+#define BUILD_BONUS_LAMP_LOOP_LANE      0x08
+#define BUILD_BONUS_LAMP_RIGHT_INLANE   0x10
 
 
 #define LEFT_GATE_OPEN_TIME_MS  30000
@@ -774,7 +785,14 @@ byte BonusLampAssignments[6] = {LAMP_BONUS_1, LAMP_BONUS_2, LAMP_BONUS_3, LAMP_B
 
 void ShowBonusLamps() {
   boolean lampShown[6] = {false};
-  if (GameMode == GAME_MODE_SKILL_SHOT) {
+  if (CurrentStatusReportPage==1 && CurrentTime < (LastSwitchHitTime + STATUS_MODE_INACTIVITY_DELAY + 3000)) {
+    byte lampPhase = ((CurrentTime - (LastSwitchHitTime + STATUS_MODE_INACTIVITY_DELAY))/75) % 13;
+    if (lampPhase>6) lampPhase = 12-lampPhase;
+    for (byte count = 0; count<6; count++) {
+      RPU_SetLampState(BonusLampAssignments[count], count==lampPhase);
+    }
+    RPU_SetLampState(LAMP_SPECIAL, (lampPhase==6)?true:false);
+  } else if (GameMode == GAME_MODE_SKILL_SHOT) {
     RPU_SetLampState(LAMP_BONUS_1, 0);
     RPU_SetLampState(LAMP_BONUS_2, 0);
     RPU_SetLampState(LAMP_BONUS_3, 0);
@@ -895,6 +913,8 @@ void ShowLoopSpinnerAndLockLamps() {
     RPU_SetLampState(LAMP_HIDE_AWAY, 0);
     RPU_SetLampState(LAMP_CAPTIVE_BALL, 1, 0, 25);
     RPU_SetLampState(LAMP_BEHIND_CAPTIVE, 1, 0, 25);
+    RPU_SetLampState(LAMP_LOOP_BONUS, 1, 0, 25);
+    RPU_SetLampState(LAMP_LEFT_VUK, 0);
   } else if (GameMode == GAME_MODE_MULTIBALL_3) {
     if ((MiniModesRunning[CurrentPlayer]&BAND_MINIMODE_FLAG)) {
       RPU_SetLampState(LAMP_LEFT_SPINNER, 1, 0, 25);
@@ -914,21 +934,39 @@ void ShowLoopSpinnerAndLockLamps() {
     }
 
     RPU_SetLampState(LAMP_LEFT_VUK, MB3JackpotQualified==1, 0, 75);
+    RPU_SetLampState(LAMP_LOOP_BONUS, 0);
+  } else if (GameMode==GAME_MODE_MINIMODE) {
+    if (LeftSpinnerLitTime) RPU_SetLampState(LAMP_LEFT_SPINNER, 1, 0, 150);
+    else RPU_SetLampState(LAMP_LEFT_SPINNER, MiniModesRunning[CurrentPlayer]&BAND_MINIMODE_FLAG, 0, 25);
+    RPU_SetLampState(LAMP_HIDE_AWAY, 0);
+    RPU_SetLampState(LAMP_LEFT_VUK, 0);
+    RPU_SetLampState(LAMP_CAPTIVE_BALL, 0);
+    RPU_SetLampState(LAMP_BEHIND_CAPTIVE, 0);
+    int flashSpeed = 100;
+    if (RightFlipsSeen) flashSpeed = 50;
+    if (RightFlipsSeen==(RightFlipsForAddABall-1)) flashSpeed = 25;
+    RPU_SetLampState(LAMP_LOOP_BONUS, 1, 0, flashSpeed);
   } else {
-    if ((MiniModesRunning[CurrentPlayer]&BAND_MINIMODE_FLAG)) {
-      RPU_SetLampState(LAMP_LEFT_SPINNER, 1, 0, 25);
-    } else {
-      RPU_SetLampState(LAMP_LEFT_SPINNER, LeftSpinnerLitTime ? true : false, 0, 150);
-    }
+    RPU_SetLampState(LAMP_LEFT_SPINNER, LeftSpinnerLitTime ? true : false, 0, 150);
     RPU_SetLampState(LAMP_HIDE_AWAY, (CurrentTime<TopGateCloseTime)?true:false, 0, 250);
 
-    RPU_SetLampState(LAMP_LEFT_VUK, MiniModesQualified[CurrentPlayer] ? true : false, 0, 75);
-
+    if (BuildBonusLamps[CurrentPlayer] & BUILD_BONUS_LAMP_SAUCER) {
+      if (MiniModesQualified[CurrentPlayer]) {
+        byte lampPhase = (CurrentTime/1000)%2;
+        if (lampPhase) RPU_SetLampState(LAMP_LEFT_VUK, 1);
+        else RPU_SetLampState(LAMP_LEFT_VUK, 1, 0, 75);
+      } else {
+        RPU_SetLampState(LAMP_LEFT_VUK, 1);
+      }
+    } else {
+      RPU_SetLampState(LAMP_LEFT_VUK, MiniModesQualified[CurrentPlayer] ? true : false, 0, 75);
+    }
+    RPU_SetLampState(LAMP_LOOP_BONUS, BuildBonusLamps[CurrentPlayer] & BUILD_BONUS_LAMP_LOOP_LANE);
+    RPU_SetLampState(LAMP_CAPTIVE_BALL, BuildBonusLamps[CurrentPlayer] & BUILD_BONUS_LAMP_CAPTIVE_BALL);
+    
     if (TopGateAvailableTime && CurrentTime > TopGateAvailableTime && (LeftDropTargets.GetStatus() & 0x02)) {
-      RPU_SetLampState(LAMP_CAPTIVE_BALL, 1, 0, 600);
       RPU_SetLampState(LAMP_BEHIND_CAPTIVE, 1, 0, 75);
     } else {
-      RPU_SetLampState(LAMP_CAPTIVE_BALL, 0);
       RPU_SetLampState(LAMP_BEHIND_CAPTIVE, 0);
     }
   }
@@ -966,7 +1004,7 @@ void ShowLaneLamps() {
   } else {
     RPU_SetLampState(LAMP_OPEN_SAVE_GATE, 0);
   }
-  RPU_SetLampState(LAMP_LEFT_INLANE, 0);
+  RPU_SetLampState(LAMP_LEFT_INLANE, (BuildBonusLamps[CurrentPlayer] & BUILD_BONUS_LAMP_LEFT_INLANE)?true:false);
 
   if (LeftGateCloseTime) {
     unsigned short flashRate = 0;
@@ -977,7 +1015,7 @@ void ShowLaneLamps() {
   } else {
     RPU_SetLampState(LAMP_LEFT_OUTLANE, 0);
   }
-  RPU_SetLampState(LAMP_RIGHT_INLANE, 0);
+  RPU_SetLampState(LAMP_RIGHT_INLANE, (BuildBonusLamps[CurrentPlayer] & BUILD_BONUS_LAMP_RIGHT_INLANE)?true:false);
   RPU_SetLampState(LAMP_RIGHT_OUTLANE_EB, 0);
 }
 
@@ -1916,7 +1954,6 @@ int InitGamePlay(boolean curStateChanged) {
   // The start button has been hit only once to get
   // us into this mode, so we assume a 1-player game
   // at the moment
-  RPU_EnableSolenoidStack();
   RPU_SetCoinLockout((Credits >= MaximumCredits) ? true : false);
 
   // Reset displays & game state variables
@@ -1953,6 +1990,7 @@ int InitGamePlay(boolean curStateChanged) {
   LastTimePopHit = 0;
   LastTiltWarningTime = 0;
   ShowPlayerScores(0xFF, false, false);
+  RPU_EnableSolenoidStack();
   RPU_PushToSolenoidStack(SOL_TOP_GATE_CLOSE, TOP_GATE_CLOSE_SOLENOID_STRENGTH);
 
   return MACHINE_STATE_INIT_NEW_BALL;
@@ -2043,6 +2081,7 @@ int InitNewBall(bool curStateChanged) {
     RightFlipperBeingHeld = false;
     LeftFlipperBeingHeld = false;
     LastFlipperSeen = 0;
+    LastFlipLaneTime = 0;
 
     // Reset Drop Targets
     LeftDropTargets.ResetDropTargets(CurrentTime + 100, true);
@@ -2110,6 +2149,17 @@ void CheckVUKForStuckBall() {
         } else if (GameMode != GAME_MODE_MINIMODE_START) {
           VUKClosedStart = 0;
           RPU_PushToSolenoidStack(SOL_VUK, VUK_SOLENOID_STRENGTH, true);
+  
+          if (BuildBonusLamps[CurrentPlayer] & BUILD_BONUS_LAMP_SAUCER) {
+            AddToBonus(1);
+            int sfxNum = SOUND_EFFECT_BONUS_1 + (Bonus[CurrentPlayer]-1);
+            if (sfxNum > SOUND_EFFECT_BONUS_9) sfxNum = SOUND_EFFECT_BONUS_9;
+            PlaySoundEffect(sfxNum);
+          } else {
+            BuildBonusLamps[CurrentPlayer] |= BUILD_BONUS_LAMP_SAUCER;
+            CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 100;
+            PlaySoundEffect(SOUND_EFFECT_ELECTRIC_PIANO_3);
+          }
         }
       }
     }
@@ -2702,6 +2752,22 @@ int ManageGameMode() {
       } else if (DisplaysNeedRefreshing) {
         DisplaysNeedRefreshing = false;
         ShowPlayerScores(0xFF, false, false);
+      }
+
+      if (LastFlipLaneTime) {
+        if (CurrentTime > (LastFlipLaneTime+750)) {
+          LastFlipLaneTime = 0;
+        } else {
+          specialAnimationRunning = true;
+          byte radarPhase = ((CurrentTime - LastFlipLaneTime)/32);
+          ShowLampAnimationSingleStep(0, radarPhase);
+        }
+      } else if (LastTimePopHit) {
+        if (CurrentTime < (LastTimePopHit+480)) {
+          specialAnimationRunning = true;
+          byte popOutPhase = ((CurrentTime - LastTimePopHit)/20);
+          ShowLampAnimationSingleStep(4, popOutPhase);
+        }
       }
 
       break;
@@ -3891,21 +3957,46 @@ void HandleGamePlaySwitches(byte switchHit) {
         LastCaptiveBallHit = CurrentTime;
         CurrentScores[CurrentPlayer] += 10000 * PlayfieldMultiplier;
         HandleCaptiveBallHit();
+
+        if (BuildBonusLamps[CurrentPlayer] & BUILD_BONUS_LAMP_CAPTIVE_BALL) {
+          AddToBonus(1);
+          int sfxNum = SOUND_EFFECT_BONUS_1 + (Bonus[CurrentPlayer]-1);
+          if (sfxNum > SOUND_EFFECT_BONUS_9) sfxNum = SOUND_EFFECT_BONUS_9;
+          PlaySoundEffect(sfxNum);
+        } else {
+          BuildBonusLamps[CurrentPlayer] |= BUILD_BONUS_LAMP_CAPTIVE_BALL;
+          CurrentScores[CurrentPlayer] += 10000 * PlayfieldMultiplier;
+        }
+        
       }
       ValidateAndRegisterPlayfieldSwitch();
       break;
 
     case SW_LEFT_INLANE:
-      CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 100;
-      PlaySoundEffect(SOUND_EFFECT_ELECTRIC_PIANO_3);
-      AddToBonus(1);
+      if (BuildBonusLamps[CurrentPlayer] & BUILD_BONUS_LAMP_LEFT_INLANE) {
+        AddToBonus(1);
+        int sfxNum = SOUND_EFFECT_BONUS_1 + (Bonus[CurrentPlayer]-1);
+        if (sfxNum > SOUND_EFFECT_BONUS_9) sfxNum = SOUND_EFFECT_BONUS_9;
+        PlaySoundEffect(sfxNum);
+      } else {
+        BuildBonusLamps[CurrentPlayer] |= BUILD_BONUS_LAMP_LEFT_INLANE;
+        CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 100;
+        PlaySoundEffect(SOUND_EFFECT_ELECTRIC_PIANO_3);
+      }
       ValidateAndRegisterPlayfieldSwitch();
       break;
 
     case SW_RIGHT_INLANE:
-      CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 100;
-      PlaySoundEffect(SOUND_EFFECT_ELECTRIC_PIANO_3);
-      AddToBonus(1);
+      if (BuildBonusLamps[CurrentPlayer] & BUILD_BONUS_LAMP_RIGHT_INLANE) {
+        AddToBonus(1);
+        int sfxNum = SOUND_EFFECT_BONUS_1 + (Bonus[CurrentPlayer]-1);
+        if (sfxNum > SOUND_EFFECT_BONUS_9) sfxNum = SOUND_EFFECT_BONUS_9;
+        PlaySoundEffect(sfxNum);
+      } else {
+        BuildBonusLamps[CurrentPlayer] |= BUILD_BONUS_LAMP_RIGHT_INLANE;
+        CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 100;
+        PlaySoundEffect(SOUND_EFFECT_ELECTRIC_PIANO_3);
+      }
       LeftSpinnerLitTime = CurrentTime;
       ValidateAndRegisterPlayfieldSwitch();
       break;
@@ -3948,9 +4039,17 @@ void HandleGamePlaySwitches(byte switchHit) {
         }
       } else {
         PlaySoundEffect(SOUND_EFFECT_LOOP_1 + CurrentTime % 2);
-        CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 1000;
       }
-      AddToBonus(1);
+      if (BuildBonusLamps[CurrentPlayer] & BUILD_BONUS_LAMP_LOOP_LANE) {
+        AddToBonus(1);
+        int sfxNum = SOUND_EFFECT_BONUS_1 + (Bonus[CurrentPlayer]-1);
+        if (sfxNum > SOUND_EFFECT_BONUS_9) sfxNum = SOUND_EFFECT_BONUS_9;
+        PlaySoundEffect(sfxNum);
+      } else {
+        BuildBonusLamps[CurrentPlayer] |= BUILD_BONUS_LAMP_LOOP_LANE;
+        CurrentScores[CurrentPlayer] += 10000 * PlayfieldMultiplier;
+      }
+      LastFlipLaneTime = CurrentTime;
       ValidateAndRegisterPlayfieldSwitch();
       break;
 
@@ -4000,10 +4099,12 @@ void HandleGamePlaySwitches(byte switchHit) {
       break;
 
     case SW_VUK:
-      // VUK is now handled by debouncer
+      // VUK kitckout is now handled by debouncer
       // We'll validate the PF with this switch, unless
       // we just fired the VUK as part of the ball search.
-      if (BallSearchLastSolenoidFired!=SOL_VUK) ValidateAndRegisterPlayfieldSwitch();
+      if (BallSearchLastSolenoidFired!=SOL_VUK) {
+        ValidateAndRegisterPlayfieldSwitch();
+      }
       break;
 
     case SW_TRAP:
@@ -4204,26 +4305,28 @@ int RunGamePlayMode(int curState, boolean curStateChanged) {
 unsigned long LastLEDUpdateTime = 0;
 byte LEDPhase = 0;
 #endif
-//unsigned long NumLoops = 0;
-//unsigned long LastLoopReportTime = 0;
+
+#ifdef DEBUG_SHOW_LOOPS_PER_SECOND
+unsigned long NumLoops = 0;
+unsigned long LastLoopReportTime = 0;
+#endif
 
 void loop() {
 
-  /*
-    if (DEBUG_MESSAGES) {
-      NumLoops += 1;
-      if (CurrentTime>(LastLoopReportTime+1000)) {
-        LastLoopReportTime = CurrentTime;
-        char buf[128];
-        sprintf(buf, "Loop running at %lu Hz\n", NumLoops);
-        Serial.write(buf);
-        NumLoops = 0;
-      }
-    }
-  */
-
   CurrentTime = millis();
   int newMachineState = MachineState;
+  
+#ifdef DEBUG_SHOW_LOOPS_PER_SECOND
+  NumLoops += 1;
+  if (LastLoopReportTime==0) LastLoopReportTime = CurrentTime;
+  if (CurrentTime>(LastLoopReportTime+1000)) {
+    LastLoopReportTime = CurrentTime;
+    char buf[128];
+    sprintf(buf, "Loop running at %lu Hz\n", NumLoops);
+    Serial.write(buf);
+    NumLoops = 0;
+  }
+#endif  
 
   if (MachineState < 0) {
     newMachineState = RunSelfTest(MachineState, MachineStateChanged);

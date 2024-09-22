@@ -119,6 +119,14 @@ volatile byte SwitchesMinus2[NUM_SWITCH_BYTES];
 volatile byte SwitchesMinus1[NUM_SWITCH_BYTES];
 volatile byte SwitchesNow[NUM_SWITCH_BYTES];
 byte SwitchInverter[NUM_SWITCH_BYTES] = {0x00};
+
+#ifdef RPU_STREAMLINED_IMMEDIATE_SOLENOIDS
+#define MAX_IMMEDIATE_STREAMLINED_SOLENOIDS     10
+byte ImmediateSolenoidSwitchByte[MAX_IMMEDIATE_STREAMLINED_SOLENOIDS]; // Can't imagine more than 10 immediate solenoids
+byte ImmediateSolenoidSwitchFlag[MAX_IMMEDIATE_STREAMLINED_SOLENOIDS]; // Can't imagine more than 10 immediate solenoids
+byte ImmediateSolenoidSwitchMask[NUM_SWITCH_BYTES];
+#endif
+
 #ifdef RPU_OS_USE_DIP_SWITCHES
 byte DipSwitches[4];
 #endif
@@ -2091,7 +2099,43 @@ void RPU_ClearVariables() {
     SwitchesMinus2[switchCount] = 0xFF;
     SwitchesMinus1[switchCount] = 0xFF;
     SwitchesNow[switchCount] = 0xFF;
+    SwitchInverter[switchCount] = 0x00;
+#ifdef RPU_STREAMLINED_IMMEDIATE_SOLENOIDS    
+    ImmediateSolenoidSwitchMask[switchCount] = 0x00;
+#endif    
   }
+
+#ifdef RPU_STREAMLINED_IMMEDIATE_SOLENOIDS    
+  for (byte count=0; count<MAX_IMMEDIATE_STREAMLINED_SOLENOIDS; count++) {
+    ImmediateSolenoidSwitchByte[count] = 0x00;
+    ImmediateSolenoidSwitchFlag[count] = 0x00;
+  }
+
+  if (GameSwitches) {
+    for (byte count=0; count<NumGameSwitches; count++) {
+      if (GameSwitches[count].switchNum < MAX_NUM_SWITCHES) {
+        ImmediateSolenoidSwitchMask[GameSwitches[count].switchNum / 8] |= (0x01<< (GameSwitches[count].switchNum % 8));
+        ImmediateSolenoidSwitchByte[count] = GameSwitches[count].switchNum / 8;
+        ImmediateSolenoidSwitchFlag[count] = (0x01<< (GameSwitches[count].switchNum % 8));
+      }
+    }
+
+    if (DEBUG_MESSAGES) {
+      char buf[256];
+      for (byte count=0; count<NUM_SWITCH_BYTES; count++) {
+        sprintf(buf, "Switch mask byte %d = 0x%02X\n", count, ImmediateSolenoidSwitchMask[count]);
+        Serial.write(buf);
+      }
+      for (byte count=0; count<NumGameSwitches; count++) {
+        sprintf(buf, "Triggered sol switch=%d, byte=%d, mask=0x%02X\n", GameSwitches[count].switchNum, ImmediateSolenoidSwitchByte[count], ImmediateSolenoidSwitchFlag[count]);
+        Serial.write(buf);
+      }
+    }
+  
+  }
+
+  
+#endif  
 
   for (byte count=0; count<TIMED_SOLENOID_STACK_SIZE; count++) {
     TimedSolenoidStack[count].inUse = 0;
@@ -2721,6 +2765,9 @@ void InterruptService3() {
       RPU_SetContinuousSolenoidBit(false, ST5_CONTINUOUS_SOLENOID_BIT);
 #endif 
 
+
+#ifndef RPU_STREAMLINED_IMMEDIATE_SOLENOIDS
+
       // Some switches need to trigger immediate closures (bumpers & slings)
       startingClosures = (SwitchesNow[switchCount]) & (~SwitchesMinus1[switchCount]);
       boolean immediateSolenoidFired = false;
@@ -2776,6 +2823,56 @@ void InterruptService3() {
           validClosures = validClosures>>1;
         }        
       }
+
+#else 
+
+      // Streamlined version of solenoid handling
+      boolean immediateSolenoidFired = false;
+      // Some switches need to trigger immediate closures (bumpers & slings)
+      startingClosures = (SwitchesNow[switchCount]) & (~SwitchesMinus1[switchCount]);
+      if (startingClosures & ImmediateSolenoidSwitchMask[switchCount]) {
+        // This switch requires an immediate solenoid response
+        for (byte immediateTrigger=0; immediateTrigger<NumGamePrioritySwitches; immediateTrigger++) {
+          if (ImmediateSolenoidSwitchByte[immediateTrigger]==switchCount && (ImmediateSolenoidSwitchFlag[immediateTrigger]&startingClosures)) {
+            // Start firing this solenoid (just one until the closure is validate
+            PushToFrontOfSolenoidStack(GameSwitches[immediateTrigger].solenoid, 1);
+            immediateSolenoidFired = true;            
+          }
+        }
+      }
+
+      immediateSolenoidFired = false;
+      validClosures = (SwitchesNow[switchCount] & SwitchesMinus1[switchCount]) & ~SwitchesMinus2[switchCount];
+      // If there is a valid switch closure (off, on, on)
+      if (validClosures) {
+
+        // Fire solenoid, if it's registered to this switch
+        if (validClosures & ImmediateSolenoidSwitchMask[switchCount]) {
+          for (byte immediateTrigger=0; immediateTrigger<NumGameSwitches; immediateTrigger++) {
+            if (ImmediateSolenoidSwitchByte[immediateTrigger]==switchCount && (ImmediateSolenoidSwitchFlag[immediateTrigger]&validClosures)) {
+              if (immediateTrigger<NumGamePrioritySwitches && immediateSolenoidFired==false) {
+                PushToFrontOfSolenoidStack(GameSwitches[immediateTrigger].solenoid, GameSwitches[immediateTrigger].solenoidHoldTime);
+              } else {
+                RPU_PushToSolenoidStack(GameSwitches[immediateTrigger].solenoid, GameSwitches[immediateTrigger].solenoidHoldTime);
+              }
+            }  
+          }
+        }
+
+        // Now push any switches to the stack
+        byte validSwitchNum= switchCount * 8;
+        for (byte count=0; count<8; count++) {
+          if (validClosures & 0x01) {
+            PushToSwitchStack(validSwitchNum);
+          }
+          validSwitchNum += 1;
+          validClosures /= 2;
+        }
+        
+      }
+
+#endif
+
 
       // There are no port reads or writes for the rest of the loop, 
       // so we can allow the display interrupt to fire

@@ -175,8 +175,8 @@ void RPU_WriteULToEEProm(unsigned short startByte, unsigned long value);
 
 
 #ifdef RPU_CPP_FILE
-  int NumGameSwitches = 0;
-  int NumGamePrioritySwitches = 0;
+  byte NumGameSwitches = 0;
+  byte NumGamePrioritySwitches = 0;
   PlayfieldAndCabinetSwitch *GameSwitches = NULL;
 
 #if (RPU_MPU_ARCHITECTURE==15)
