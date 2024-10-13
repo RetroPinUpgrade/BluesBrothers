@@ -5,7 +5,7 @@
 #define LAMP_RIGHT_INLANE           7     // Q50
 #define LAMP_RIGHT_OUTLANE_EB       11    // Q51
 #define LAMP_OPEN_SAVE_GATE         38    // Q41
-#define LAMP_LEFT_VUK               34    // Q42
+#define LAMP_SAUCER                 34    // Q42
 #define LAMP_LOOP_BONUS             39    // Q46
 #define LAMP_BONUS_1                18    // Q48
 #define LAMP_BONUS_2                3     // Q57
@@ -79,7 +79,7 @@
 #define SW_STANDUP_K                29
 #define SW_STANDUP_E                30
 #define SW_POP_BUMPER               31
-#define SW_VUK                      32
+#define SW_SAUCER                   32
 #define SW_SHOOTER_LANE             33
 #define SW_LEFT_OUTLANE             34
 #define SW_LEFT_INLANE              35
@@ -95,7 +95,7 @@
 #define SOL_DROP_BANK_R_RESET       2
 #define SOL_DROP_BANK_L_RESET       3
 #define SOL_KNOCKER                 4
-#define SOL_VUK                     7
+#define SOL_SAUCER                  7
 #define SOL_LEFT_SLING              10
 #define SOL_RIGHT_SLING             11
 #define SOL_TOP_SLING               13
