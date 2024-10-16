@@ -18,7 +18,7 @@
 #include <EEPROM.h>
 
 #define GAME_MAJOR_VERSION  2024
-#define GAME_MINOR_VERSION  11
+#define GAME_MINOR_VERSION  12
 #define DEBUG_MESSAGES  1
 
 #if (DEBUG_MESSAGES==1)
@@ -961,8 +961,8 @@ void ShowStandupTargetLamps() {
       if (WizardShotsCompleted & jakeFlag) {
         RPU_SetLampState(JakeLampAssignments[count], 1);
       } else {
-        byte availPhase = (CurrentTime / 25) % 6;
-        if ((availPhase==0 && (count%2)) || ((availPhase==3) && (count%2)==0)) RPU_SetLampState(JakeLampAssignments[count], 1);
+        byte availPhase = (CurrentTime / 25) % 12;
+        if ((availPhase==0 && (count%2)) || ((availPhase==6) && (count%2)==0)) RPU_SetLampState(JakeLampAssignments[count], 1);
         else RPU_SetLampState(JakeLampAssignments[count], 0);
       }
       jakeFlag *= 2;
@@ -1023,7 +1023,7 @@ void ShowLoopSpinnerAndLockLamps() {
     RPU_SetLampState(LAMP_LOOP_BONUS, 1, 0, flashSpeed);
   } else if (GameMode==GAME_MODE_MINI_WIZARD) {
     boolean phase2;
-    phase2 = (((CurrentTime / 25) % 6)==3) ? true : false;   
+    phase2 = (((CurrentTime / 25) % 12)==6) ? true : false;   
     if (WizardShotsCompleted & WIZARD_SHOT_SPINNER) RPU_SetLampState(LAMP_LEFT_SPINNER, 1);
     else RPU_SetLampState(LAMP_LEFT_SPINNER, phase2);
     RPU_SetLampState(LAMP_HIDE_AWAY, 0);
@@ -1091,8 +1091,8 @@ void ShowDropTargetLamps() {
       if (WizardShotsCompleted & elwoodFlag) {
         RPU_SetLampState(ElwoodLampAssignments[count], 1);
       } else {
-        byte availPhase = (CurrentTime / 25) % 6;
-        if ((availPhase==0 && (count%2)) || ((availPhase==3) && (count%2)==0)) RPU_SetLampState(ElwoodLampAssignments[count], 1);
+        byte availPhase = (CurrentTime / 25) % 12;
+        if ((availPhase==0 && (count%2)) || ((availPhase==6) && (count%2)==0)) RPU_SetLampState(ElwoodLampAssignments[count], 1);
         else RPU_SetLampState(ElwoodLampAssignments[count], 0);
       }
       elwoodFlag *= 2;
@@ -1143,7 +1143,7 @@ void ShowLaneLamps() {
     if (WizardShotsCompleted & WIZARD_SHOT_SAVE_GATE) {
       RPU_SetLampState(LAMP_OPEN_SAVE_GATE, 1);
     } else {
-      byte availPhase = (CurrentTime / 25) % 6;
+      byte availPhase = (CurrentTime / 25) % 12;
       RPU_SetLampState(LAMP_OPEN_SAVE_GATE, (availPhase==0)?true:false);
     }
   } else {
@@ -1732,11 +1732,6 @@ void PlayBackgroundSong(unsigned int songNum) {
 
   Audio.PlayBackgroundSong(songNum);
 
-  if (DEBUG_MESSAGES) {
-    char buf[128];
-    sprintf(buf, "Playing music track %d\n", songNum);
-    Serial.write(buf);
-  }
 }
 
 
@@ -2306,9 +2301,6 @@ int InitNewBall(bool curStateChanged) {
     BallLaunched = false;
     LastShooterKickTime = 0;
     NumberOfBallsInPlay = 1;
-    if (DEBUG_MESSAGES) {
-      Serial.write("Init new ball - number of BIP=1\n");
-    }
     SkillshotLetter = 0;
     RPU_SetLampState(LAMP_LAUNCH_BUTTON, 1, 0, 150);
     BallLaunched = false;
@@ -3390,8 +3382,8 @@ int ManageGameMode() {
 
       if (CurrentTime > WizardShotsRotateTime) {
         unsigned long rotateGap = 100;
-        if (CurrentTime < (GameModeStartTime + 30000)) {
-          rotateGap = 3100 - (CurrentTime - GameModeStartTime) / 10;
+        if (CurrentTime < (GameModeStartTime + 300000)) {
+          rotateGap = 3100 - (CurrentTime - GameModeStartTime) / 100;
         }
         WizardShotsRotateTime = CurrentTime + rotateGap;
         WizardShotsCompleted *= 2;
