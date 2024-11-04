@@ -148,7 +148,7 @@ uint16_t track;
 
         case RSP_TRACK_REPORT:
           track = rxMessage[2];
-          track = (track << 8) + rxMessage[1] + 1;
+          track = (track * 256) + rxMessage[1] + 1;
           voice = rxMessage[3];
           if (voice < MAX_NUM_VOICES) {
             if (rxMessage[4] == 0) {
@@ -183,7 +183,7 @@ uint16_t track;
         case RSP_SYSTEM_INFO:
           numVoices = rxMessage[1];
           numTracks = rxMessage[3];
-          numTracks = (numTracks << 8) + rxMessage[2];
+          numTracks = (numTracks * 256) + rxMessage[2];
           sysinfoRcvd = true;
           // ==========================
           ///\Serial.print("Sys info received\n");
@@ -502,6 +502,7 @@ AudioHandler::AudioHandler() {
   ClearSoundCardQueue();
   ClearNotificationStack();
   currentBackgroundTrack = BACKGROUND_TRACK_NONE;
+  musicStopped = true;
   soundtrackRandomOrder = true;
   nextSoundtrackPlayTime = 0;
   backgroundSongEndTime = 0;
@@ -593,8 +594,12 @@ boolean AudioHandler::StopAllMusic() {
   curSoundtrack = NULL;
 #if defined(RPU_OS_USE_WAV_TRIGGER) || defined(RPU_OS_USE_WAV_TRIGGER_1p3)
   if (currentBackgroundTrack!=BACKGROUND_TRACK_NONE) {
+//    char buf[128];
+//    sprintf(buf, "Stopping background music (%d)\n", currentBackgroundTrack);
+//    Serial.write(buf);
     wTrig.trackStop(currentBackgroundTrack);
     currentBackgroundTrack = BACKGROUND_TRACK_NONE;
+    musicStopped = true;
     return true;
   }
 #endif
@@ -1132,12 +1137,13 @@ boolean AudioHandler::PlayBackgroundSong(unsigned short trackIndex, boolean loop
   boolean trackPlayed = false;
 
   if (trackIndex!=BACKGROUND_TRACK_NONE) {
-    currentBackgroundTrack = trackIndex;        
+    musicStopped = false;
+    currentBackgroundTrack = trackIndex;
 #if defined(RPU_OS_USE_WAV_TRIGGER) || defined(RPU_OS_USE_WAV_TRIGGER_1p3)
 #ifdef RPU_OS_USE_WAV_TRIGGER_1p3
     wTrig.trackPlayPoly(trackIndex, true);
     trackPlayed = true;
-    Serial.write("Playing background song\n");
+//    Serial.write("Playing background song\n");
 #else
     wTrig.trackPlayPoly(trackIndex);
     trackPlayed = true;
@@ -1154,6 +1160,8 @@ boolean AudioHandler::PlayBackgroundSong(unsigned short trackIndex, boolean loop
 
 void AudioHandler::StartNextSoundtrackSong(unsigned long currentTime) {
 
+  if (curSoundtrack==NULL) return;
+  
   unsigned int retSong = (currentTime%curSoundtrackEntries);
   boolean songRecentlyPlayed = false;
 
@@ -1183,6 +1191,7 @@ void AudioHandler::StartNextSoundtrackSong(unsigned long currentTime) {
 #endif
   }
   currentBackgroundTrack = curSoundtrack[retSong].TrackIndex;
+  musicStopped = false;
 
 #if defined(RPU_OS_USE_WAV_TRIGGER) || defined(RPU_OS_USE_WAV_TRIGGER_1p3)
 #ifdef RPU_OS_USE_WAV_TRIGGER_1p3
@@ -1198,18 +1207,29 @@ void AudioHandler::StartNextSoundtrackSong(unsigned long currentTime) {
 
 
 void AudioHandler::ManageBackgroundSong(unsigned long currentTime) {
-  if (curSoundtrack==NULL) return; 
-
-  if (backgroundSongEndTime!=0) {
-    if (currentTime>=backgroundSongEndTime) {
-      StartNextSoundtrackSong(currentTime);
-    }
-  } else {
+  if (curSoundtrack==NULL /* && currentBackgroundTrack!=BACKGROUND_TRACK_NONE */) {
 #if defined(RPU_OS_USE_WAV_TRIGGER) || defined(RPU_OS_USE_WAV_TRIGGER_1p3)
-    if (!wTrig.isTrackPlaying(currentBackgroundTrack)) {
-      StartNextSoundtrackSong(currentTime);
-    }
+      if (currentBackgroundTrack!=BACKGROUND_TRACK_NONE) {
+        if (wTrig.isTrackPlaying(currentBackgroundTrack)) {
+          musicStopped = false;
+        } else {
+          musicStopped = true;
+        }
+      }
 #endif
+  } else {
+
+    if (backgroundSongEndTime!=0) {
+      if (currentTime>=backgroundSongEndTime) {
+        StartNextSoundtrackSong(currentTime);
+      }
+    } else {
+#if defined(RPU_OS_USE_WAV_TRIGGER) || defined(RPU_OS_USE_WAV_TRIGGER_1p3)
+      if (!wTrig.isTrackPlaying(currentBackgroundTrack)) {
+        StartNextSoundtrackSong(currentTime);
+      }
+#endif
+    }
   }
 }
 

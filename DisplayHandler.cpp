@@ -350,6 +350,148 @@ void ShowPlayerScores(byte displayToUpdate, boolean flashCurrent, boolean dashCu
 
 }
 
+
+void ShowPlayerScoresOnTwoDisplays(byte displayToUpdate, boolean flashCurrent, boolean dashCurrent, unsigned long allScoresShowValue) {
+
+  if (displayToUpdate == 0xFF) ScoreOverrideStatus = 0;
+  byte displayMask = RPU_OS_ALL_DIGITS_MASK;
+  unsigned long displayScore = 0;
+  byte scrollPhaseChanged = false;
+
+  byte scrollPhase = ((CurrentTime - LastTimeScoreChanged) / 125) % 16;
+  if (scrollPhase != LastScrollPhase) {
+    LastScrollPhase = scrollPhase;
+    scrollPhaseChanged = true;
+  }
+
+  byte startPlayerNum = 0; 
+  byte endPlayerNum = 1;
+
+  if (CurrentPlayer>1) {
+    startPlayerNum = 2;
+    endPlayerNum = 3;
+  }
+
+  for (byte scoreCount = startPlayerNum; scoreCount <= endPlayerNum; scoreCount++) {
+
+    // If this display is currently being overriden, then we should update it
+    if (allScoresShowValue == 0 && (ScoreOverrideStatus & (0x01 << scoreCount))) {
+      displayScore = ScoreOverrideValue[scoreCount];
+      if (displayScore != DISPLAY_OVERRIDE_BLANK_SCORE) {
+        ShowAnimatedValue(scoreCount, displayScore, ScoreAnimation[scoreCount]);
+      } else {
+        RPU_SetDisplayBlank(scoreCount % 2, 0);
+      }
+
+    } else {
+      boolean showingCurrentAchievement = false;
+      // No override, update scores designated by displayToUpdate
+      if (allScoresShowValue == 0) {
+        displayScore = CurrentScores[scoreCount];
+        displayScore += (CurrentAchievements[scoreCount] % 10);
+        if (CurrentAchievements[scoreCount]) showingCurrentAchievement = true;
+      }
+      else displayScore = allScoresShowValue;
+
+      // If we're updating all displays, or the one currently matching the loop, or if we have to scroll
+      if (displayToUpdate == 0xFF || displayToUpdate == scoreCount || displayScore > RPU_OS_MAX_DISPLAY_SCORE || showingCurrentAchievement) {
+
+        // Don't show this score if it's not a current player score (even if it's scrollable)
+        if (displayToUpdate == 0xFF && (scoreCount >= CurrentNumPlayers && CurrentNumPlayers != 0) && allScoresShowValue == 0) {
+          RPU_SetDisplayBlank(scoreCount % 2, 0x00);
+          continue;
+        }
+
+        if (displayScore > RPU_OS_MAX_DISPLAY_SCORE) {
+          // Score needs to be scrolled
+          if ((CurrentTime - LastTimeScoreChanged) < 2000) {
+            // show score for four seconds after change
+            RPU_SetDisplay(scoreCount % 2, displayScore % (RPU_OS_MAX_DISPLAY_SCORE + 1), false);
+            byte blank = RPU_OS_ALL_DIGITS_MASK;
+            if (showingCurrentAchievement && (CurrentTime / 200) % 2) {
+              blank &= ~(0x01 << (RPU_OS_NUM_DIGITS - 1));
+            }
+            RPU_SetDisplayBlank(scoreCount % 2, blank);
+          } else {
+            // Scores are scrolled 10 digits and then we wait for 6
+            if (scrollPhase < 11 && scrollPhaseChanged) {
+              byte numDigits = MagnitudeOfScore(displayScore);
+
+              // Figure out top part of score
+              unsigned long tempScore = displayScore;
+              if (scrollPhase < RPU_OS_NUM_DIGITS) {
+                displayMask = RPU_OS_ALL_DIGITS_MASK;
+                for (byte scrollCount = 0; scrollCount < scrollPhase; scrollCount++) {
+                  displayScore = (displayScore % (RPU_OS_MAX_DISPLAY_SCORE + 1)) * 10;
+                  displayMask = displayMask >> 1;
+                }
+              } else {
+                displayScore = 0;
+                displayMask = 0x00;
+              }
+
+              // Add in lower part of score
+              if ((numDigits + scrollPhase) > 10) {
+                byte numDigitsNeeded = (numDigits + scrollPhase) - 10;
+                for (byte scrollCount = 0; scrollCount < (numDigits - numDigitsNeeded); scrollCount++) {
+                  tempScore /= 10;
+                }
+                displayMask |= GetDisplayMask(MagnitudeOfScore(tempScore));
+                displayScore += tempScore;
+              }
+              RPU_SetDisplayBlank(scoreCount % 2, displayMask);
+              RPU_SetDisplay(scoreCount % 2, displayScore);
+            }
+          }
+        } else {
+          if (flashCurrent && displayToUpdate == scoreCount) {
+            unsigned long flashSeed = CurrentTime / 250;
+            if (flashSeed != LastFlashOrDash) {
+              LastFlashOrDash = flashSeed;
+              if (((CurrentTime / 250) % 2) == 0) RPU_SetDisplayBlank(scoreCount % 2, 0x00);
+              else RPU_SetDisplay(scoreCount % 2, displayScore, true, 2, true);
+            }
+          } else if (dashCurrent && displayToUpdate == scoreCount) {
+            unsigned long dashSeed = CurrentTime / 50;
+            if (dashSeed != LastFlashOrDash) {
+              LastFlashOrDash = dashSeed;
+              byte dashPhase = (CurrentTime / 60) % (2 * RPU_OS_NUM_DIGITS * 3);
+              byte numDigits = MagnitudeOfScore(displayScore);
+              if (dashPhase < (2 * RPU_OS_NUM_DIGITS)) {
+                displayMask = GetDisplayMask((numDigits == 0) ? 2 : numDigits);
+                if (dashPhase < (RPU_OS_NUM_DIGITS + 1)) {
+                  for (byte maskCount = 0; maskCount < dashPhase; maskCount++) {
+                    displayMask &= ~(0x01 << maskCount);
+                  }
+                } else {
+                  for (byte maskCount = (2 * RPU_OS_NUM_DIGITS); maskCount > dashPhase; maskCount--) {                    
+                    byte firstDigit;
+                    firstDigit = (0x20) << (RPU_OS_NUM_DIGITS - 6);
+                    displayMask &= ~(firstDigit >> (maskCount - dashPhase - 1));
+                  }
+                }
+                RPU_SetDisplay(scoreCount % 2, displayScore);
+                RPU_SetDisplayBlank(scoreCount % 2, displayMask);
+              } else {
+                RPU_SetDisplay(scoreCount % 2, displayScore, true, 2, true);
+              }
+            }
+          } else {
+            byte blank;
+            blank = RPU_SetDisplay(scoreCount % 2, displayScore, false, 2, true);
+            if (showingCurrentAchievement && (CurrentTime / 200) % 2) {
+              blank &= ~(0x01 << (RPU_OS_NUM_DIGITS - 1));
+            }
+            RPU_SetDisplayBlank(scoreCount % 2, blank);
+          }
+        }
+      } // End if this display should be updated
+    } // End on non-overridden
+  } // End loop on scores
+
+}
+
+
 void ShowFlybyValue(byte numToShow, unsigned long timeBase) {
   byte shiftDigits = (CurrentTime - timeBase) / 120;
   byte rightSideBlank = 0;
@@ -448,6 +590,84 @@ boolean UpdateDisplays(boolean finishAnimation = false) {
     else ShowPlayerScores(0xFF, false, false);
   } else {
     ShowPlayerScores(CurrentPlayer, (BallFirstSwitchHitTime == 0) ? true : false, (BallFirstSwitchHitTime > 0 && ((CurrentTime - LastTimeScoreChanged) > 2000)) ? true : false);
+
+    // Show the player up lamp
+    if (BallFirstSwitchHitTime == 0) {
+      for (byte count = 0; count < 4; count++) {
+        //        RPU_SetLampState(LAMP_HEAD_PLAYER_1_UP + count, (((CurrentTime / 250) % 2) == 0 || CurrentPlayer != count) ? false : true);
+        //        RPU_SetLampState(LAMP_HEAD_1_PLAYER + count, ((count+1)==CurrentNumPlayers) ? true : false);
+      }
+    } else {
+      for (byte count = 0; count < 4; count++) {
+        //        RPU_SetLampState(LAMP_HEAD_PLAYER_1_UP + count, (CurrentPlayer == count) ? true : false);
+        //        RPU_SetLampState(LAMP_HEAD_1_PLAYER + count, ((count+1)==CurrentNumPlayers) ? true : false);
+      }
+    }
+  }
+
+  return playTick;
+}
+
+
+boolean UpdateOnTwoDisplays(boolean finishAnimation = false) {
+  boolean playTick = false;
+
+  if (finishAnimation) {
+    CurrentScores[CurrentPlayer] += ScoreAdditionAnimation;
+    ScoreAdditionAnimationStartTime = 0;
+    ScoreAdditionAnimation = 0;
+    ShowPlayerScoresOnTwoDisplays(0xFF, false, false);
+  }
+  
+  // Three types of display modes are shown here:
+  // 1) score animation
+  // 2) fly-bys
+  // 3) normal scores
+  if (ScoreAdditionAnimationStartTime != 0) {
+    // Score animation
+    if ((CurrentTime - ScoreAdditionAnimationStartTime) < 2000) {
+      byte displayPhase = (CurrentTime - ScoreAdditionAnimationStartTime) / 60;
+      byte digitsToShow = 1 + displayPhase / 6;
+      if (digitsToShow > 6) digitsToShow = 6;
+      unsigned long scoreToShow = ScoreAdditionAnimation;
+      for (byte count = 0; count < (6 - digitsToShow); count++) {
+        scoreToShow = scoreToShow / 10;
+      }
+      if (scoreToShow == 0 || displayPhase % 2) scoreToShow = DISPLAY_OVERRIDE_BLANK_SCORE;
+      byte countdownDisplay = (1 + CurrentPlayer) % 4;
+
+      for (byte count = 0; count < 4; count++) {
+        if (count == countdownDisplay) OverrideScoreDisplay(count, scoreToShow, DISPLAY_OVERRIDE_ANIMATION_NONE);
+        else if (count != CurrentPlayer) OverrideScoreDisplay(count, DISPLAY_OVERRIDE_BLANK_SCORE, DISPLAY_OVERRIDE_ANIMATION_NONE);
+      }
+    } else {
+      byte countdownDisplay = (1 + CurrentPlayer) % 4;
+      unsigned long remainingScore = 0;
+      if ( (CurrentTime - ScoreAdditionAnimationStartTime) < 5000 ) {
+        remainingScore = (((CurrentTime - ScoreAdditionAnimationStartTime) - 2000) * ScoreAdditionAnimation) / 3000;
+
+        if (PlayScoreAnimationTick>1 && (remainingScore / PlayScoreAnimationTick) != (LastRemainingAnimatedScoreShown / PlayScoreAnimationTick)) {
+          LastRemainingAnimatedScoreShown = remainingScore;
+          playTick = true;
+        }
+        
+      } else {
+        CurrentScores[CurrentPlayer] += ScoreAdditionAnimation;
+        remainingScore = 0;
+        ScoreAdditionAnimationStartTime = 0;
+        ScoreAdditionAnimation = 0;
+      }
+
+      for (byte count = 0; count < 4; count++) {
+        if (count == countdownDisplay) OverrideScoreDisplay(count, ScoreAdditionAnimation - remainingScore, DISPLAY_OVERRIDE_ANIMATION_NONE);
+        else if (count != CurrentPlayer) OverrideScoreDisplay(count, DISPLAY_OVERRIDE_BLANK_SCORE, DISPLAY_OVERRIDE_ANIMATION_NONE);
+        else OverrideScoreDisplay(count, CurrentScores[CurrentPlayer] + remainingScore, DISPLAY_OVERRIDE_ANIMATION_NONE);
+      }
+    }
+    if (ScoreAdditionAnimationStartTime) ShowPlayerScoresOnTwoDisplays(CurrentPlayer, false, false);
+    else ShowPlayerScoresOnTwoDisplays(0xFF, false, false);
+  } else {
+    ShowPlayerScoresOnTwoDisplays(CurrentPlayer, (BallFirstSwitchHitTime == 0) ? true : false, (BallFirstSwitchHitTime > 0 && ((CurrentTime - LastTimeScoreChanged) > 2000)) ? true : false);
 
     // Show the player up lamp
     if (BallFirstSwitchHitTime == 0) {
