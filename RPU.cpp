@@ -1582,6 +1582,10 @@ void RPU_EnableSolenoidStack() {
   SolenoidStackEnabled = true;
 }
 
+boolean RPU_IsSolenoidStackEnabled() {
+  return SolenoidStackEnabled;
+}
+
 #elif (RPU_MPU_ARCHITECTURE>=10)
 void RPU_SetDisableFlippers(boolean disableFlippers, byte solbit) {
   (void)solbit;
@@ -1621,6 +1625,10 @@ void RPU_DisableSolenoidStack() {
 void RPU_EnableSolenoidStack() {
   SolenoidStackEnabled = true;
   RPU_DataWrite(PIA_SOLENOID_CONTROL_B, 0x3C);
+}
+
+boolean RPU_IsSolenoidStackEnabled() {
+  return SolenoidStackEnabled;
 }
 
 

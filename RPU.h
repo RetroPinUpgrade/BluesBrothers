@@ -97,6 +97,7 @@ boolean RPU_FireContinuousSolenoid(byte solBit, byte numCyclesToFire);
 byte RPU_ReadContinuousSolenoids();
 void RPU_DisableSolenoidStack();
 void RPU_EnableSolenoidStack();
+boolean RPU_IsSolenoidStackEnabled();
 boolean RPU_PushToTimedSolenoidStack(byte solenoidNumber, byte numPushes, unsigned long whenToFire, boolean disableOverride = false);
 void RPU_UpdateTimedSolenoidStack(unsigned long curTime);
 
