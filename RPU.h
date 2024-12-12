@@ -89,6 +89,7 @@ void RPU_ClearUpDownSwitchState();
 void RPU_PushToSolenoidStack(byte solenoidNumber, byte numPushes, boolean disableOverride = false);
 void RPU_SetCoinLockout(boolean lockoutOff = false, byte solbit = CONTSOL_DISABLE_COIN_LOCKOUT);
 void RPU_SetDisableFlippers(boolean disableFlippers = true, byte solbit = CONTSOL_DISABLE_FLIPPERS);
+boolean RPU_GetDisableFlippers(byte solbit = CONTSOL_DISABLE_FLIPPERS);
 void RPU_SetContinuousSolenoidBit(boolean bitOn, byte solBit = 0x10);
 #if (RPU_MPU_ARCHITECTURE>=10)
 void RPU_SetContinuousSolenoid(boolean solOn, byte solNum);
@@ -109,7 +110,7 @@ void RPU_SetDisplayMatch(int value, boolean displayOn = true, boolean showBothDi
 void RPU_SetDisplayBallInPlay(int value, boolean displayOn = true, boolean showBothDigits=true);
 void RPU_SetDisplayFlash(int displayNumber, unsigned long value, unsigned long curTime, int period=500, byte minDigits=2);
 void RPU_SetDisplayFlashCredits(unsigned long curTime, int period=100);
-void RPU_CycleAllDisplays(unsigned long curTime, byte digitNum=0); // Self-test function
+void RPU_CycleAllDisplays(unsigned long curTime, byte digitNum=0, byte digitValue=0xFF); // Self-test function
 byte RPU_GetDisplayBlank(int displayNumber);
 #if (RPU_MPU_ARCHITECTURE==15)
 byte RPU_SetDisplayText(int displayNumber, char *text, boolean blankByLength=true);

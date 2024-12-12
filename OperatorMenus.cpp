@@ -24,21 +24,51 @@
 #include "AudioHandler.h"
 #include "OperatorMenus.h"
 
+#ifndef RPU_NUMBER_OF_PLAYER_DISPLAYS
+#define RPU_NUMBER_OF_PLAYER_DISPLAYS 4
+#endif
+
 
 #ifdef RPU_OS_USE_7_DIGIT_DISPLAYS
-#ifdef RPU_OS_USE_6_DIGIT_CREDIT_DISPLAY_WITH_7_DIGIT_DISPLAYS
-#define TOTAL_DISPLAY_DIGITS 34
+  #if (RPU_NUMBER_OF_PLAYER_DISPLAYS==4)
+    #ifdef RPU_OS_USE_6_DIGIT_CREDIT_DISPLAY_WITH_7_DIGIT_DISPLAYS
+      #define TOTAL_DISPLAY_DIGITS 34
+    #else
+      #define TOTAL_DISPLAY_DIGITS 35
+    #endif
+  #else
+    #ifdef RPU_OS_USE_6_DIGIT_CREDIT_DISPLAY_WITH_7_DIGIT_DISPLAYS
+      #define TOTAL_DISPLAY_DIGITS 20
+    #else
+      #define TOTAL_DISPLAY_DIGITS 21
+    #endif
+  #endif
 #else
-#define TOTAL_DISPLAY_DIGITS 35
+  #if (RPU_NUMBER_OF_PLAYER_DISPLAYS==4)
+    #define TOTAL_DISPLAY_DIGITS 30
+  #else
+    #define TOTAL_DISPLAY_DIGITS 18
+  #endif
 #endif
-#else
-#define TOTAL_DISPLAY_DIGITS 30
-#endif
 
 
+byte DefaultLampLookup(byte displayID) {
+  if (displayID==0) return OPERATOR_MENU_VALUE_UNUSED;
+  if (displayID<65) return (displayID - 1);
+  return OPERATOR_MENU_VALUE_OUT_OF_RANGE;
+}
 
-unsigned long OM_GetLastChangedTime();
-void OM_SetLastChangedTime(unsigned long setSelfTestChange);
+unsigned short DefaultSolenoidIDLookup(byte displayID) {
+  if (displayID==0) return OPERATOR_MENU_VALUE_UNUSED;
+  if (displayID<16) return (displayID - 1);
+  return OPERATOR_MENU_VALUE_OUT_OF_RANGE;
+}
+
+byte DefaultSolenoidStrengthLookup(byte displayID) {
+  if (displayID==0) return OPERATOR_MENU_VALUE_UNUSED;
+  if (displayID<16) return 5;
+  return OPERATOR_MENU_VALUE_OUT_OF_RANGE;
+}
 
 
 OperatorMenus::OperatorMenus() {
@@ -54,27 +84,24 @@ OperatorMenus::OperatorMenus() {
     AdjustmentValues[count] = 0;
   }
   CurrentAdjustmentStorageByte = 0;
-  TempValue = 0;
   CurrentAdjustmentByte = NULL;
 
   LastTestTime = 0;
-//  LastSelfTestChange = 0;
   SavedValue = 0;
   ResetHold = 0;
   NextSpeedyValueChange = 0;
   NumSpeedyChanges = 0;
   LastResetPress = 0;
-  CurValue = 0;
   LastTestValue = 0;
-  CurSound = 0x01;
-  SoundPlaying = 0;
-  SoundToPlay = 0;
-  SolenoidCycle = true;
+  CycleTest = true;
     
   CurrentAdjustmentUL = NULL;
   SoundSettingTimeout = 0;
   AdjustmentScore = 0;
   SolenoidStackStateOnEntry = false;
+  LampLookupFunction = DefaultLampLookup;
+  SolenoidIDLookupFunction = DefaultSolenoidIDLookup;
+  SolenoidStrengthLookupFunction = DefaultSolenoidStrengthLookup;
 }
 
 
@@ -82,6 +109,19 @@ boolean OperatorMenus::OperatorMenusActive() {
   if (TopLevel==OPERATOR_MENU_NOT_ACTIVE) return false;
   return true;
 }
+
+void OperatorMenus::SetLampsLookupCallback(byte (*lampLookup)(byte)) {
+  LampLookupFunction = lampLookup;
+}
+
+void OperatorMenus::SetSolenoidIDLookupCallback(unsigned short (*solenoidIDLookup)(byte)) {
+  SolenoidIDLookupFunction = solenoidIDLookup;
+}
+
+void OperatorMenus::SetSolenoidStrengthLookupCallback(byte (*solenoidStrengthLookup)(byte)) {
+  SolenoidStrengthLookupFunction = solenoidStrengthLookup;
+}
+
 
 
 void OperatorMenus::SetNavigationButtons(byte forwardButtonNum, byte backButtonNum, byte enterButtonNum, byte menuButtonNum)
@@ -166,6 +206,11 @@ void OperatorMenus::SetParameterControls(   byte adjustmentType, byte numAdjustm
 }
 
 
+boolean OperatorMenus::BallEjectInProgress(boolean startBallEject) {
+  if (startBallEject) EjectBalls = true;
+  return EjectBalls;
+}
+
 
 void OperatorMenus::EnterOperatorMenu() {
   // make note of the game over status (to restore later)
@@ -175,6 +220,8 @@ void OperatorMenus::EnterOperatorMenu() {
   ParameterChanged = false;
   CurrentAdjustmentByte = NULL;
   CurrentAdjustmentUL = NULL;
+  LastResetPress = 0;
+  EjectBalls = false;  
 
   RPU_SetDisplayCredits(0, false);
   RPU_SetDisplayBallInPlay(0, false);
@@ -184,6 +231,7 @@ void OperatorMenus::EnterOperatorMenu() {
   
   // Remember credits & BIP display
   SolenoidStackStateOnEntry = RPU_IsSolenoidStackEnabled();
+  FlipperStateOnEntry = RPU_GetDisableFlippers();
 }
 
 void OperatorMenus::ExitOperatorMenu() {
@@ -193,6 +241,7 @@ void OperatorMenus::ExitOperatorMenu() {
   
   if (SolenoidStackStateOnEntry) RPU_EnableSolenoidStack();
   else RPU_DisableSolenoidStack();
+  RPU_SetDisableFlippers(FlipperStateOnEntry);
 }
 
 
@@ -219,17 +268,28 @@ void OperatorMenus::ShowParameterValue() {
 int OperatorMenus::UpdateMenu(unsigned long currentTime) {
 
   byte curSwitch;
+  
+  if (RPU_ReadSingleSwitchState(EnterButton)) {
+    if (ResetHold==0) {
+      ResetHold = currentTime;
+    } else if (currentTime > (ResetHold+1300)){
+      // Handle held enter button
+      HandleEnterButton(currentTime, false, true);
+    }
+  } else {
+    ResetHold = 0;
+    NextSpeedyValueChange = 0;
+  }
+  if (ResetHold!=0 && !RPU_ReadSingleSwitchState(EnterButton)) {
+    ResetHold = 0;
+    NextSpeedyValueChange = 0;
+  }
+  LastSwitchSeen = SWITCH_STACK_EMPTY;
 
   while ( (curSwitch = RPU_PullFirstFromSwitchStack()) != SWITCH_STACK_EMPTY ) {
-    byte beginningTopLevel = TopLevel;
-    byte beginningSubLevel = SubLevel;
-    
-  //  ForwardButton = OPERATOR_MENU_BUTTON_UNDEFINED;
-  //  BackButton = OPERATOR_MENU_BUTTON_UNDEFINED;
-  //  EnterButton = OPERATOR_MENU_BUTTON_UNDEFINED;
-  //  MenuButton = OPERATOR_MENU_BUTTON_UNDEFINED;
-  
+    LastSwitchSeen = curSwitch;
     if (curSwitch==MenuButton) {
+      EjectBalls = false;
       RPU_TurnOffAllLamps();
       TopLevel += 1;
       TopLevelChanged = true;
@@ -255,6 +315,18 @@ int OperatorMenus::UpdateMenu(unsigned long currentTime) {
       if (TopLevel==OPERATOR_MENU_SELF_TEST_MENU) NumSubLevels = 6;
       if (TopLevel==OPERATOR_MENU_AUDITS_MENU) NumSubLevels = 9;
     } else if (curSwitch==EnterButton) {
+      EjectBalls = false;
+
+      boolean resetDoubleClick = false;
+  
+      if (curSwitch==EnterButton) {
+        ResetHold = currentTime;
+        if (currentTime<(LastResetPress+400)) {
+          resetDoubleClick = true;
+        }
+        LastResetPress = currentTime;
+      }
+      
       if (TopLevel==OPERATOR_MENU_RETURN_TO_GAME) {
         ExitOperatorMenu();
         return 0;
@@ -264,30 +336,31 @@ int OperatorMenus::UpdateMenu(unsigned long currentTime) {
           SubLevelChanged = true;
         } else {
           // Handle enter button for test/audit/adjustment
-          HandleEnterButton();   
+          HandleEnterButton(currentTime, resetDoubleClick);
         }
       }
     } else if (curSwitch==ForwardButton) {
+      EjectBalls = false;
       if (TopLevel!=OPERATOR_MENU_RETURN_TO_GAME) {
         if (SubLevel==OPERATOR_MENU_NOT_ACTIVE) {
           SubLevel = 0;
-          SubLevelChanged = true;
           CurrentAdjustmentByte = NULL;
           CurrentAdjustmentUL = NULL;
         } else {
           SubLevel += 1;
           if (SubLevel>=NumSubLevels) SubLevel = 0;
-          SubLevelChanged = true;
         }
+        SubLevelChanged = true;
+        if (TopLevel==OPERATOR_MENU_SELF_TEST_MENU) StartTestMode(currentTime);
         //ShowParameterValue();
         RPU_SetDisplayCredits(TopLevel);
         RPU_SetDisplayBallInPlay(SubLevel + 1);
       }
     } else if (curSwitch==BackButton) {
+      EjectBalls = false;
       if (TopLevel!=OPERATOR_MENU_RETURN_TO_GAME) {
         if (SubLevel==OPERATOR_MENU_NOT_ACTIVE) {
           SubLevel = 0;
-          SubLevelChanged = true;
           CurrentAdjustmentByte = NULL;
           CurrentAdjustmentUL = NULL;
         } else {
@@ -297,20 +370,15 @@ int OperatorMenus::UpdateMenu(unsigned long currentTime) {
           } else {
             SubLevel -= 1;
           }
-          SubLevelChanged = true;
         }
+        SubLevelChanged = true;
+        if (TopLevel==OPERATOR_MENU_SELF_TEST_MENU) StartTestMode(currentTime);
         //ShowParameterValue();
         RPU_SetDisplayCredits(TopLevel);
         RPU_SetDisplayBallInPlay(SubLevel + 1);
       }
     }
-  
-    // Test modes are handled above
-    if (TopLevel==OPERATOR_MENU_SELF_TEST_MENU) {
-      if (SubLevel!=OPERATOR_MENU_NOT_ACTIVE) RunSelfTest(curSwitch, (SubLevel==beginningSubLevel)?false:true, currentTime);
-    }
-
-    (void)beginningTopLevel;
+    
   }
 
   // See if any modes need to be updated
@@ -322,10 +390,59 @@ int OperatorMenus::UpdateMenu(unsigned long currentTime) {
 }
 
 
-void OperatorMenus::HandleEnterButton() {
+void OperatorMenus::HandleEnterButton(unsigned long currentTime, boolean doubleClick, boolean resetHeld) {
+
+  if (resetHeld) {
+    if (NextSpeedyValueChange==0) {
+      NextSpeedyValueChange = (currentTime + 100);      
+    }
+  }
 
   if (TopLevel==OPERATOR_MENU_SELF_TEST_MENU) {
-    
+    if (SubLevel==OPERATOR_MENU_TEST_LAMPS) {
+      if (LastTestValue==99) {
+        LastTestValue = 1;
+      } else {
+        LastTestValue += 1;
+        if (LampLookupFunction(LastTestValue)==OPERATOR_MENU_VALUE_OUT_OF_RANGE) {
+          LastTestValue = 99;
+        }
+      }
+
+      if (LastTestValue==99) {
+        RPU_SetDisplay(0, 99, true);
+        for (byte count=1; count<RPU_NUMBER_OF_PLAYER_DISPLAYS; count++) {
+          RPU_SetDisplayBlank(count, 0x00);
+        }
+        RPU_TurnOffAllLamps();
+        for (int count=0; count<RPU_MAX_LAMPS; count++) {
+          RPU_SetLampState(count, 1, 0, 500);
+        }
+      } else {
+        RPU_SetDisplay(0, LastTestValue, true);
+        RPU_TurnOffAllLamps();
+        RPU_SetLampState(LampLookupFunction(LastTestValue), 1);
+      }
+      
+    } else if (SubLevel==OPERATOR_MENU_TEST_DISPLAYS) {
+      if (CycleTest) {
+        LastTestValue = 0;
+        SavedValue = 0;
+        LastTestTime = 0;
+        CycleTest = false;
+      } else {
+        CycleTest = true;
+      }
+      
+    } else if (SubLevel==OPERATOR_MENU_TEST_SOLENOIDS) {
+      if (CycleTest) {
+        CycleTest = false;
+        TestDelay = 3;
+      } else {
+        CycleTest = true; 
+        TestDelay = 1;
+      }
+    }
   } else if (TopLevel==OPERATOR_MENU_AUDITS_MENU) {
     
   } else if (TopLevel==OPERATOR_MENU_BASIC_ADJ_MENU || TopLevel==OPERATOR_MENU_GAME_ADJ_MENU) {
@@ -403,7 +520,8 @@ void OperatorMenus::HandleEnterButton() {
 
     ShowParameterValue();
   }
-  
+
+  (void)doubleClick;
 }
 
 
@@ -411,26 +529,24 @@ void OperatorMenus::HandleEnterButton() {
 void OperatorMenus::ReadCurrentSwitches() {
   byte numSwitchesToShow = RPU_NUMBER_OF_PLAYER_DISPLAYS * 2;
   byte count, switchCount;
-  byte firstSwitchFound = SWITCH_STACK_EMPTY;
+
   for (count=0; count<numSwitchesToShow; count++) {
-    for (switchCount=0; switchCount<64; switchCount++) {
-      if (firstSwitchFound==((switchCount+LastTestValue)%64)) break;
-      if (RPU_ReadSingleSwitchState( (switchCount+LastTestValue)%64 )) {
+    AdjustmentValues[count] = SWITCH_STACK_EMPTY;
+  }
+  
+  for (count=0; count<numSwitchesToShow; count++) {
+    for (switchCount=LastTestValue; switchCount<64; switchCount++) {
+      if (RPU_ReadSingleSwitchState(switchCount)) {
         // We found a switch, so we can record it and move on
-        CurrentSwitches[count] = (switchCount+LastTestValue)%64;
-        LastTestValue = CurrentSwitches[count] + 1;
-        if (firstSwitchFound==SWITCH_STACK_EMPTY) firstSwitchFound = CurrentSwitches[count];
+        AdjustmentValues[count] = switchCount;
+        LastTestValue = switchCount + 1;
         break;
       }      
     }
     if (switchCount==64) {
       // can't find anymore switches, so break
-      break;
-    }
-  }
-  if (count<numSwitchesToShow) {
-    for (byte remainderCount=count; remainderCount<numSwitchesToShow; remainderCount++) {
-      CurrentSwitches[remainderCount] = SWITCH_STACK_EMPTY;
+      LastTestValue = 0;
+      return;
     }
   }
 }
@@ -445,6 +561,7 @@ byte OperatorMenus::GetDisplayMaskForSwitches(byte switch1, byte switch2) {
 
 #ifdef RPU_OS_USE_7_DIGIT_DISPLAYS
     if (curSwitch!=SWITCH_STACK_EMPTY) {
+      curSwitch += 1;
       if (curSwitch>99) {
         displayMask |= 0x70;
       } else if (curSwitch>9) {
@@ -455,6 +572,7 @@ byte OperatorMenus::GetDisplayMaskForSwitches(byte switch1, byte switch2) {
     }
 #else 
     if (curSwitch!=SWITCH_STACK_EMPTY) {
+      curSwitch += 1;
       if (curSwitch>99) {
         displayMask |= 0x38;
       } else if (curSwitch>9) {
@@ -470,15 +588,20 @@ byte OperatorMenus::GetDisplayMaskForSwitches(byte switch1, byte switch2) {
 
 void OperatorMenus::UpdateSelfTest(unsigned long currentTime) {
   if (SubLevel==OPERATOR_MENU_TEST_SWITCHES) {
-    if (LastTestTime==0 || currentTime>(LastTestTime+1500)) {
+
+    if (LastSwitchSeen!=SWITCH_STACK_EMPTY) {
+      RPU_SetDisplayBallInPlay(LastSwitchSeen+1, true);
+    } 
+    
+    if (LastTestTime==0 || currentTime>(LastTestTime+1500) || LastSwitchSeen!=SWITCH_STACK_EMPTY) {
       ReadCurrentSwitches();
       unsigned long displayValue = 0;
       byte switchToShow = 0;
       byte displayMask = 0;
       for (byte count=0; count<RPU_NUMBER_OF_PLAYER_DISPLAYS; count++) {
         // Switches have a "1" starting index now
-        displayValue = (unsigned long)(CurrentSwitches[switchToShow]+1) * 1000 + (unsigned long)(CurrentSwitches[switchToShow+1]+1);
-        displayMask = GetDisplayMaskForSwitches(CurrentSwitches[switchToShow]+1, CurrentSwitches[switchToShow+1]+1);
+        displayValue = (unsigned long)(AdjustmentValues[switchToShow]+1) * 1000 + (unsigned long)(AdjustmentValues[switchToShow+1]+1);
+        displayMask = GetDisplayMaskForSwitches(AdjustmentValues[switchToShow], AdjustmentValues[switchToShow+1]);
         switchToShow += 2;
         RPU_SetDisplay(count, displayValue, false);
         RPU_SetDisplayBlank(count, displayMask);
@@ -486,97 +609,115 @@ void OperatorMenus::UpdateSelfTest(unsigned long currentTime) {
       LastTestTime = currentTime;
     }
   } else if (SubLevel==OPERATOR_MENU_TEST_DISPLAYS) {
-    RPU_CycleAllDisplays(currentTime, CurValue);
-  } else if (SubLevel==OPERATOR_MENU_TEST_SOLENOIDS) {
-    if (currentTime>(LastTestTime+1000)) {
-      RPU_SetDisplay(0, CurValue, true);      
-      LastTestTime = currentTime;
-      if (CurValue<15) {
-        RPU_PushToSolenoidStack(CurValue, 10);
-      } else {
-        RPU_FireContinuousSolenoid(0x10<<(CurValue-15), 5);
+
+    if (!CycleTest) {
+      if (LastTestTime==0 || currentTime>(LastTestTime+250)) {
+        LastTestTime = currentTime;
+        LastTestValue += 1;
+        RPU_CycleAllDisplays(currentTime, LastTestValue, SavedValue);
+
+        if (LastTestValue>=TOTAL_DISPLAY_DIGITS) {
+          LastTestValue = 0;
+          SavedValue += 1;
+          if (SavedValue>9) SavedValue = 0;
+        }
       }
-      CurValue += 1;
-      if (CurValue>18) CurValue = 0;
+    } else {
+      RPU_CycleAllDisplays(currentTime, 0);
+    }
+        
+  } else if (SubLevel==OPERATOR_MENU_TEST_SOLENOIDS) {
+    if (currentTime>(LastTestTime+((unsigned long)TestDelay * 1000))) {
+      RPU_SetDisplay(0, LastTestValue, true);      
+      LastTestTime = currentTime;
+
+      // make sure next value is used
+      for (byte count=0; count<32; count++) {
+        if (SolenoidIDLookupFunction(LastTestValue)==OPERATOR_MENU_VALUE_UNUSED) LastTestValue += 1;
+        else if (SolenoidIDLookupFunction(LastTestValue)==OPERATOR_MENU_VALUE_OUT_OF_RANGE) LastTestValue = 1;
+        else break;
+      }
+
+      unsigned short solenoidIndex = SolenoidIDLookupFunction(LastTestValue);
+      byte solenoidStrength = SolenoidStrengthLookupFunction(LastTestValue);
+      if (solenoidIndex!=OPERATOR_MENU_VALUE_UNUSED && solenoidIndex!=OPERATOR_MENU_VALUE_OUT_OF_RANGE) {
+        if (solenoidStrength==OPERATOR_MENU_VALUE_UNUSED || solenoidStrength==OPERATOR_MENU_VALUE_OUT_OF_RANGE) {
+          solenoidStrength = 4; // low default value
+        }
+        if (solenoidIndex & 0xFF00) {
+          // This is a continuous solenoid to be tested
+          RPU_FireContinuousSolenoid(solenoidIndex / 256, 5);
+        } else {
+          
+        }
+      }
+      
+      if (LastTestValue<15) {
+        RPU_PushToSolenoidStack(LastTestValue, 10);
+      } else {
+        RPU_FireContinuousSolenoid(0x10<<(LastTestValue-15), 5);
+      }
+
+      if (CycleTest) {
+        LastTestValue += 1;
+        SavedValue = 0;
+      } else {
+        SavedValue += 1;
+        if (SavedValue>10) TestDelay = 5;
+      }
     }
   }
 }
 
 
-void OperatorMenus::RunSelfTest(byte curSwitch, boolean testChanged, unsigned long currentTime) {
+void OperatorMenus::StartTestMode(unsigned long currentTime) {
 
-  boolean resetDoubleClick = false;
-  unsigned short savedScoreStartByte = 0;
-  unsigned short auditNumStartByte = 0;
-
-  if (curSwitch==EnterButton) {
-    ResetHold = currentTime;
-    if ((currentTime-LastResetPress)<400) {
-      resetDoubleClick = true;
-      curSwitch = SWITCH_STACK_EMPTY;
+  RPU_SetDisplayCredits(1);
+  RPU_SetDisplayBallInPlay(1+SubLevel);
+  if (SubLevel==OPERATOR_MENU_TEST_LAMPS) {
+    RPU_SetDisplay(0, 99, true);
+    for (byte count=1; count<RPU_NUMBER_OF_PLAYER_DISPLAYS; count++) {
+      RPU_SetDisplayBlank(count, 0x00);
     }
-    LastResetPress = currentTime;
-    SoundToPlay += 1;
-    if (SoundToPlay>31) SoundToPlay = 0;
-  }
-
-  if (ResetHold!=0 && !RPU_ReadSingleSwitchState(EnterButton)) {
-    ResetHold = 0;
-    NextSpeedyValueChange = 0;
-  }
-
-  boolean resetBeingHeld = false;
-  if (ResetHold!=0 && (currentTime-ResetHold)>1300) {
-    resetBeingHeld = true;
-    if (NextSpeedyValueChange==0) {
-      NextSpeedyValueChange = currentTime;
-      NumSpeedyChanges = 0;
+    RPU_TurnOffAllLamps();
+    for (int count=0; count<RPU_MAX_LAMPS; count++) {
+      RPU_SetLampState(count, 1, 0, 500);
     }
-  }
-
-  if (testChanged) {
-    RPU_SetDisplayCredits(1);
-    RPU_SetDisplayBallInPlay(1+SubLevel);
-    if (SubLevel==OPERATOR_MENU_TEST_LAMPS) {
-      RPU_SetDisplay(0, 99, true);
-      for (byte count=1; count<RPU_NUMBER_OF_PLAYER_DISPLAYS; count++) {
-        RPU_SetDisplayBlank(count, 0x00);
-      }
-      RPU_TurnOffAllLamps();
-      for (int count=0; count<RPU_MAX_LAMPS; count++) {
-        RPU_SetLampState(count, 1, 0, 500);
-      }
-      CurValue = 99;
-    } else if (SubLevel==OPERATOR_MENU_TEST_DISPLAYS) {
-      RPU_TurnOffAllLamps();
-      for (int count=0; count<4; count++) {
-        RPU_SetDisplayBlank(count, RPU_OS_ALL_DIGITS_MASK);        
-      }
-      CurValue = 0;
-      RPU_CycleAllDisplays(currentTime, CurValue);
-    } else if (SubLevel==OPERATOR_MENU_TEST_SOLENOIDS) {
-      for (byte count=0; count<RPU_NUMBER_OF_PLAYER_DISPLAYS; count++) {
-        RPU_SetDisplayBlank(count, 0);
-      }
-      RPU_TurnOffAllLamps();
-      LastTestTime = currentTime;
-      RPU_EnableSolenoidStack();
-      SolenoidCycle = true;
-      CurValue = 0;      
-    } else if (SubLevel==OPERATOR_MENU_TEST_SWITCHES) {
-      RPU_TurnOffAllLamps();
-      LastTestTime = 0;
-      LastTestValue = 0;
-    } else if (SubLevel==OPERATOR_MENU_TEST_SOUNDS) {
-    } else if (SubLevel==OPERATOR_MENU_TEST_EJECT_BALLS) {
-      
+    LastTestValue = 99;
+  } else if (SubLevel==OPERATOR_MENU_TEST_DISPLAYS) {
+    RPU_TurnOffAllLamps();
+    for (int count=0; count<4; count++) {
+      RPU_SetDisplayBlank(count, RPU_OS_ALL_DIGITS_MASK);        
     }
+    CycleTest = true;
+    LastTestValue = 0;
+    RPU_CycleAllDisplays(currentTime, LastTestValue);
+  } else if (SubLevel==OPERATOR_MENU_TEST_SOLENOIDS) {
+    for (byte count=0; count<RPU_NUMBER_OF_PLAYER_DISPLAYS; count++) {
+      RPU_SetDisplayBlank(count, 0);
+    }
+    RPU_TurnOffAllLamps();
+    LastTestTime = currentTime;    
+    RPU_EnableSolenoidStack();
+    CycleTest = true;
+    LastTestValue = 1;
+    TestDelay = 1;
+  } else if (SubLevel==OPERATOR_MENU_TEST_SWITCHES) {
+    RPU_TurnOffAllLamps();
+    LastTestTime = 0;
+    LastTestValue = 0;
+    RPU_SetDisplayBallInPlay(0, false);
+  } else if (SubLevel==OPERATOR_MENU_TEST_SOUNDS) {
+    for (byte count=0; count<RPU_NUMBER_OF_PLAYER_DISPLAYS; count++) {
+      RPU_SetDisplayBlank(count, 0x00);
+    }
+  } else if (SubLevel==OPERATOR_MENU_TEST_EJECT_BALLS) {
+    for (byte count=0; count<RPU_NUMBER_OF_PLAYER_DISPLAYS; count++) {
+      RPU_SetDisplayBlank(count, 0x00);
+    }
+    EjectBalls = true;
   }
 
-  (void)resetDoubleClick;
-  (void)savedScoreStartByte;
-  (void)auditNumStartByte;
-  (void)resetBeingHeld;
 }
 
 

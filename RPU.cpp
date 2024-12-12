@@ -79,6 +79,7 @@ boolean UsesM6800Processor = false;
 #endif
 
 #elif (RPU_MPU_ARCHITECTURE >= 10) 
+boolean GameOverLine = true;
 #define RPU_NUM_SOLENOIDS             22
 #define NUM_SWITCH_BYTES              8
 #define MAX_NUM_SWITCHES              64
@@ -1545,6 +1546,9 @@ void RPU_SetDisableFlippers(boolean disableFlippers, byte solbit) {
   RPU_DataWrite(ADDRESS_U11_B, CurrentSolenoidByte);
 }
 
+boolean RPU_GetDisableFlippers(byte solbit) {
+  return  (CurrentSolenoidByte & solbit) ? true : false;
+}
 
 void RPU_SetContinuousSolenoidBit(boolean bitOn, byte solbit) {
   if (bitOn) {
@@ -1589,8 +1593,13 @@ boolean RPU_IsSolenoidStackEnabled() {
 #elif (RPU_MPU_ARCHITECTURE>=10)
 void RPU_SetDisableFlippers(boolean disableFlippers, byte solbit) {
   (void)solbit;
+  GameOverLine = disableFlippers;
   if (disableFlippers) RPU_DataWrite(PIA_SOLENOID_CONTROL_B, 0x34);
   else RPU_DataWrite(PIA_SOLENOID_CONTROL_B, 0x3C);
+}
+
+boolean RPU_GetDisableFlippers(byte solbit) {
+  return GameOverLine;
 }
 
 
@@ -1752,8 +1761,9 @@ void RPU_SetDisplayBallInPlay(int value, boolean displayOn, boolean showBothDigi
 
 #endif
 
-void RPU_CycleAllDisplays(unsigned long curTime, byte digitNum) {
+void RPU_CycleAllDisplays(unsigned long curTime, byte digitNum, byte digitValue) {
   int displayDigit = (curTime/250)%10;
+  if (digitValue!=0xFF) displayDigit = digitValue;
   unsigned long value;
 #if (RPU_OS_NUM_DIGITS==7)
   value = displayDigit*1111111;
@@ -2071,6 +2081,7 @@ void RPU_ClearVariables() {
   SwitchStackLast = 0;
 
 #if (RPU_MPU_ARCHITECTURE > 9) 
+  GameOverLine = true;
   // Reset sound stack
   SoundStackFirst = 0;
   SoundStackLast = 0;
@@ -3758,6 +3769,7 @@ unsigned long RPU_InitializeMPUArch10(unsigned long initOptions, byte creditRese
   // Make sure PIA IV (solenoid) CB2 is off so that solenoids are off
   RPU_SetAddressPinsDirection(RPU_PINS_OUTPUT);  
   RPU_DataWrite(PIA_SOLENOID_CONTROL_B, 0x30);
+  GameOverLine = true;
   
   delay(1000);
   boolean switchStateClosed = false;

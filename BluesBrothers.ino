@@ -18,7 +18,7 @@
 #include <EEPROM.h>
 
 #define GAME_MAJOR_VERSION  2024
-#define GAME_MINOR_VERSION  15
+#define GAME_MINOR_VERSION  16
 #define DEBUG_MESSAGES  1
 
 #if (DEBUG_MESSAGES==1)
@@ -342,7 +342,7 @@ boolean MachineStateChanged = true;
 
 #define SAUCER_SOLENOID_STRENGTH            10
 #define SHOOTER_KICK_FULL_STRENGTH          4 
-#define SHOOTER_KICK_LIGHT_STRENGTH         1
+#define SHOOTER_KICK_LIGHT_STRENGTH         2
 #define BALL_SERVE_SOLENOID_STRENGTH        50
 #define LEFT_GATE_CLOSE_SOLENOID_STRENGTH   5
 #define LEFT_GATE_OPEN_SOLENOID_STRENGTH    5
@@ -352,7 +352,7 @@ boolean MachineStateChanged = true;
 #define KNOCKER_SOLENOID_STRENGTH           4
 #define DROP_TARGET_RESET_STRENGTH          6
 
-#define STATUS_MODE_INACTIVITY_DELAY      6000
+#define STATUS_MODE_INACTIVITY_DELAY      10000
 
 #define BALL_SAVE_GRACE_PERIOD            3000
 #define BALL_SEARCH_INACTIVITY_DELAY      15000
@@ -764,6 +764,119 @@ void QueueDIAGNotification(unsigned short notificationNum) {
   (void)notificationNum;
 }
 
+
+// I'm doing this as a function instead of an array because 
+// memory is short and spending 44 bytes on a converstion array
+// seems wasteful when the board has tons and tons of code space.
+// There's a way to store this data in code space and then convert
+// it when needed, but that's slow compared to this (ugly) method.
+byte LampConvertDisplayNumberToIndex(byte displayNumber) {
+  switch(displayNumber) {
+    case  0: return OPERATOR_MENU_VALUE_UNUSED;
+    case  1: return 35;
+    case  2: return  2;
+    case  3: return 46;
+    case  4: return  7;
+    case  5: return 11;
+    case  6: return 38;
+    case  7: return 34;
+    case  8: return 39;
+    case  9: return 18;
+    case 10: return  3;
+    case 11: return 26;
+    case 12: return 47;
+    case 13: return 42;
+    case 14: return 14;
+    case 15: return 10;
+    case 16: return  6;
+    case 17: return 43;
+    case 18: return 45;
+    case 19: return 44;
+    case 20: return 36;
+    case 21: return  4;
+    case 22: return  0;
+    case 23: return 37;
+    case 24: return  9;
+    case 25: return 13;
+    case 26: return 41;
+    case 27: return 33;
+    case 28: return  1;
+    case 29: return  5;
+    case 30: return 17;
+    case 31: return 28;
+    case 32: return 12;
+    case 33: return 20;
+    case 34: return  8;
+    case 35: return 57;
+    case 36: return 49;
+    case 37: return 52;
+    case 38: return 53;
+    case 39: return 56;
+    case 40: return 48;
+    case 41: return 54;
+    case 42: return 50;
+    case 43: return 51;
+    case 44: return 55;
+    default: return OPERATOR_MENU_VALUE_OUT_OF_RANGE;
+  }
+  return 0;
+}
+
+
+
+unsigned short SolenoidConvertDisplayNumberToIndex(byte displayNumber) {
+  switch (displayNumber) {
+    case  0: return OPERATOR_MENU_VALUE_UNUSED;
+    case  1: return SOL_TOP_GATE_OPEN;
+    case  2: return SOL_TOP_GATE_CLOSE;
+    case  3: return SOL_LIFT_GATE;
+    case  4: return SOL_POP_BUMPER;
+    case  5: return SOL_DROP_BANK_R_RESET;
+    case  6: return SOL_DROP_BANK_L_RESET;
+    case  7: return SOL_KNOCKER;
+    case  8: return SOL_SAUCER;
+    case  9: return SOL_LEFT_SLING;
+    case 10: return SOL_RIGHT_SLING;
+    case 11: return SOL_TOP_SLING;
+    case 12: return SOL_SHOOTER_KICK;
+    case 13: return SOL_SERVE_BALL;
+    case 14: return SOL_LEFT_GATE_OPEN;
+    case 15: return 0x4000; // Flipper Mute
+    case 16: return SOL_LEFT_GATE_CLOSE;
+    case 17: return OPERATOR_MENU_VALUE_UNUSED; // unused 0x1000
+    case 18: return OPERATOR_MENU_VALUE_UNUSED; // unused 0x8000
+    case 19: return 0x2000; // Topper
+    default: return OPERATOR_MENU_VALUE_OUT_OF_RANGE;
+  }
+}
+
+
+byte SolenoidConvertDisplayNumberToTestStrength(byte displayNumber) {
+  switch (displayNumber) {
+    case  0: return OPERATOR_MENU_VALUE_UNUSED;
+    case  1: return TOP_GATE_OPEN_SOLENOID_STRENGTH;
+    case  2: return TOP_GATE_CLOSE_SOLENOID_STRENGTH;
+    case  3: return LIFT_GATE_SOLENOID_STRENGTH;
+    case  4: return 4;
+    case  5: return DROP_TARGET_RESET_STRENGTH;
+    case  6: return DROP_TARGET_RESET_STRENGTH;
+    case  7: return KNOCKER_SOLENOID_STRENGTH;
+    case  8: return SAUCER_SOLENOID_STRENGTH;
+    case  9: return 4;
+    case 10: return 4;
+    case 11: return 4;
+    case 12: return SHOOTER_KICK_FULL_STRENGTH;
+    case 13: return BALL_SERVE_SOLENOID_STRENGTH;
+    case 14: return LEFT_GATE_OPEN_SOLENOID_STRENGTH;
+    case 15: return 10; // Flipper Mute
+    case 16: return LEFT_GATE_CLOSE_SOLENOID_STRENGTH;
+    case 17: return OPERATOR_MENU_VALUE_UNUSED; // unused 0x1000
+    case 18: return OPERATOR_MENU_VALUE_UNUSED; // unused 0x8000
+    case 19: return 30; // Topper
+    default: return OPERATOR_MENU_VALUE_OUT_OF_RANGE;
+  }
+}
+
 void setup() {
 
   if (DEBUG_MESSAGES) {
@@ -869,6 +982,9 @@ void setup() {
   LiftGateReleaseRequestTime = 0;
   InOperatorMenu = false;
   Menus.SetNavigationButtons(SW_RIGHT_FLIPPER, SW_LEFT_FLIPPER, SW_CREDIT_RESET, SW_SELF_TEST_ON_MATRIX);
+  Menus.SetLampsLookupCallback(LampConvertDisplayNumberToIndex);
+  Menus.SetSolenoidIDLookupCallback(SolenoidConvertDisplayNumberToIndex);
+  Menus.SetSolenoidStrengthLookupCallback(SolenoidConvertDisplayNumberToTestStrength);
 }
 
 byte ReadSetting(byte setting, byte defaultValue) {
@@ -1517,6 +1633,7 @@ void UpdateLiftGate() {
 }
 
 
+
 #define SOUND_EFFECT_OM_CRB_VALUES              210
 #define SOUND_EFFECT_OM_CPC_VALUES              180
 
@@ -1639,7 +1756,17 @@ void RunOperatorMenu() {
     return;
   }
 
-
+  // It's up to this function to eject balls if requested
+  if (Menus.BallEjectInProgress()) {
+    if (CountBallsInTrough()) {
+      if (CurrentTime > (LastTimeBallServed+1500)) {
+        LastTimeBallServed = CurrentTime;
+        RPU_PushToSolenoidStack(SOL_SERVE_BALL, BALL_SERVE_SOLENOID_STRENGTH, true);
+      }
+    }
+  } else {
+    LastTimeBallServed = 0;
+  }
   
   byte topLevel = Menus.GetTopLevel();
   byte subLevel = Menus.GetSubLevel();
@@ -2332,10 +2459,10 @@ int RunAttractMode(int curState, boolean curStateChanged) {
     AttractModeStartTime = CurrentTime;
 
     if (DEBUG_MESSAGES) {
-      pinMode(20, INPUT_PULLUP);
-      pinMode(21, INPUT_PULLUP);
+      pinMode(20, INPUT);
+      pinMode(21, INPUT);
       char buf[128];
-      sprintf(buf, "D20 = %d, D21 = %d\n", digitalRead(20), digitalRead(21));
+      sprintf(buf, "D20 = %d, D21 = %d, (time=%lu)\n", digitalRead(20), digitalRead(21), CurrentTime);
       Serial.write(buf);
     }
   }
@@ -2461,6 +2588,13 @@ int RunAttractMode(int curState, boolean curStateChanged) {
     if (switchHit == SW_SELF_TEST_ON_MATRIX) {
       Menus.EnterOperatorMenu();
     }
+  }
+
+  // If the user was holding the menu button when the game started
+  // then kick the balls
+  if (CurrentTime<2000 && RPU_ReadSingleSwitchState(SW_SELF_TEST_ON_MATRIX)) {
+    Menus.EnterOperatorMenu();
+    Menus.BallEjectInProgress(true);
   }
 
   return returnState;

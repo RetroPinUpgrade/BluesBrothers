@@ -46,6 +46,9 @@
 #define OPERATOR_MENU_TEST_SOUNDS         4
 #define OPERATOR_MENU_TEST_EJECT_BALLS    5
 
+#define OPERATOR_MENU_VALUE_UNUSED        0xFD
+#define OPERATOR_MENU_VALUE_OUT_OF_RANGE  0xFE
+
 
 class OperatorMenus
 {
@@ -68,13 +71,16 @@ class OperatorMenus
     void    SetNumSubLevels(byte numSubLevels);
     boolean HasParameterChanged();
     byte    GetParameterID();
+    boolean BallEjectInProgress(boolean startBallEject = false);
     unsigned short GetParameterCallout();
 
     void    SetParameterControls(   byte adjustmentType, byte numAdjustmentValues, byte *adjustmentValues,
                                     byte parameterCallout, byte currentAdjustmentStorageByte, 
                                     byte *currentAdjustmentByte, unsigned long *currentAdjustmentUL );
-    
-    int     UpdateMenu(unsigned long currentTime);
+    void    SetLampsLookupCallback(byte (*lampLookup)(byte));
+    void    SetSolenoidIDLookupCallback(unsigned short (*solenoidIDLookup)(byte));
+    void    SetSolenoidStrengthLookupCallback(byte (*solenoidStrengthLookup)(byte));
+    int     UpdateMenu(unsigned long currentTime);    
 
   private:
     byte TopLevel;
@@ -84,15 +90,16 @@ class OperatorMenus
     byte EnterButton;
     byte MenuButton;
     byte NumSubLevels;
+    byte LastSwitchSeen;
     boolean TopLevelChanged;
     boolean SubLevelChanged;
     boolean ParameterChanged;
+    boolean EjectBalls;
   
     byte AdjustmentType;
     byte NumAdjustmentValues;
     byte AdjustmentValues[8];    
     byte CurrentAdjustmentStorageByte;
-    byte TempValue;
     byte *CurrentAdjustmentByte;
     byte ParameterID;
     unsigned short ParameterCallout;    
@@ -100,28 +107,30 @@ class OperatorMenus
     unsigned long SoundSettingTimeout;
     unsigned long AdjustmentScore;
 
-    byte CurValue;
-    byte CurSound;
-    byte SoundPlaying;
-    byte SoundToPlay;
-    byte CurrentSwitches[8];
     byte LastTestValue;
-    boolean SolenoidCycle;
+    byte TestDelay;
+    boolean CycleTest;
+    
     boolean SolenoidStackStateOnEntry;
+    boolean FlipperStateOnEntry;
+    
     unsigned long LastTestTime;
-//    unsigned long LastSelfTestChange;
     unsigned long SavedValue;
     unsigned long ResetHold;
     unsigned long NextSpeedyValueChange;
     unsigned long NumSpeedyChanges;
     unsigned long LastResetPress;
 
-    void RunSelfTest(byte curSwitch, boolean testChanged, unsigned long currentTime);
+    void StartTestMode(unsigned long currentTime);
     void UpdateSelfTest(unsigned long currentTime);
     void ReadCurrentSwitches();
     byte GetDisplayMaskForSwitches(byte switch1, byte switch2);
-    void HandleEnterButton();
+    void HandleEnterButton(unsigned long currentTime, boolean doubleClick=false, boolean resetHeld=false);
     void ShowParameterValue();
+
+    byte (*LampLookupFunction)(byte);
+    byte (*SolenoidStrengthLookupFunction)(byte);
+    unsigned short (*SolenoidIDLookupFunction)(byte);
 };
 
 

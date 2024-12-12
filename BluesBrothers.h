@@ -1,48 +1,48 @@
-// These example lamp definitions come from Supersonic
-#define LAMP_SHOOT_AGAIN            35    // Q56
-#define LAMP_LEFT_OUTLANE           2     // Q36
-#define LAMP_LEFT_INLANE            46    // Q39
-#define LAMP_RIGHT_INLANE           7     // Q50
-#define LAMP_RIGHT_OUTLANE_EB       11    // Q51
-#define LAMP_OPEN_SAVE_GATE         38    // Q41
-#define LAMP_SAUCER                 34    // Q42
-#define LAMP_LOOP_BONUS             39    // Q46
-#define LAMP_BONUS_1                18    // Q48
-#define LAMP_BONUS_2                3     // Q57
-#define LAMP_BONUS_3                26    // Q32
-#define LAMP_BONUS_4                47    // Q53
-#define LAMP_BONUS_5                42    // Q40
-#define LAMP_BONUS_6                14    // Q49
-#define LAMP_SPECIAL                10    // Q44
-#define LAMP_LEFT_SLING             6     // Q38
-#define LAMP_RIGHT_SLING            43    // Q52
-#define LAMP_CAPTIVE_BALL           45    // Q21
-#define LAMP_E_1                    44    // Q7
-#define LAMP_L                      36    // Q2
-#define LAMP_W                      4     // Q12
-#define LAMP_LEFT_SPINNER           0     // Q14
-#define LAMP_O_1                    37    // Q17
-#define LAMP_O_2                    9     // Q28
-#define LAMP_D                      13    // Q35
-#define LAMP_E_2                    41    // Q23
-#define LAMP_K                      33    // Q24
-#define LAMP_A                      1     // Q29
-#define LAMP_J                      5     // Q27
-#define LAMP_HIDE_AWAY              17    // Q34
-#define LAMP_POP_BLUE_UP            28    // Q4
-#define LAMP_POP_WHITE_DOWN         12    // Q8
-#define LAMP_POP_SMALL_BLUE         20    // Q10
-#define LAMP_BEHIND_CAPTIVE         8     // Q13
-#define LAMP_START_BUTTON           51    // Q47
-#define LAMP_LAUNCH_BUTTON          55    // Q43
-#define LAMP_HEAD_TILT              57    // Q19
-#define LAMP_HEAD_HIGH_SCORE        56    // Q6
-#define LAMP_HEAD_BALL_IN_PLAY      54    // Q30
-#define LAMP_HEAD_MATCH             50    // Q33
-#define LAMP_HEAD_PLAYER_1_UP       49    // Q15
-#define LAMP_HEAD_PLAYER_2_UP       52    // Q5
-#define LAMP_HEAD_PLAYER_3_UP       53    // Q18
-#define LAMP_HEAD_PLAYER_4_UP       48    // Q16
+
+#define LAMP_SHOOT_AGAIN            35    // Q56, 1
+#define LAMP_LEFT_OUTLANE           2     // Q36, 2
+#define LAMP_LEFT_INLANE            46    // Q39, 3
+#define LAMP_RIGHT_INLANE           7     // Q50, 4
+#define LAMP_RIGHT_OUTLANE_EB       11    // Q51, 5
+#define LAMP_OPEN_SAVE_GATE         38    // Q41, 6
+#define LAMP_SAUCER                 34    // Q42, 7
+#define LAMP_LOOP_BONUS             39    // Q46, 8
+#define LAMP_BONUS_1                18    // Q48, 9
+#define LAMP_BONUS_2                3     // Q57, 10
+#define LAMP_BONUS_3                26    // Q32, 11
+#define LAMP_BONUS_4                47    // Q53, 12
+#define LAMP_BONUS_5                42    // Q40, 13
+#define LAMP_BONUS_6                14    // Q49, 14
+#define LAMP_SPECIAL                10    // Q44, 15
+#define LAMP_LEFT_SLING             6     // Q38, 16
+#define LAMP_RIGHT_SLING            43    // Q52, 17
+#define LAMP_CAPTIVE_BALL           45    // Q21, 18
+#define LAMP_E_1                    44    // Q7,  19
+#define LAMP_L                      36    // Q2,  20
+#define LAMP_W                      4     // Q12, 21
+#define LAMP_LEFT_SPINNER           0     // Q14, 22
+#define LAMP_O_1                    37    // Q17, 23
+#define LAMP_O_2                    9     // Q28, 24
+#define LAMP_D                      13    // Q35, 25
+#define LAMP_E_2                    41    // Q23, 26
+#define LAMP_K                      33    // Q24, 27
+#define LAMP_A                      1     // Q29, 28
+#define LAMP_J                      5     // Q27, 29
+#define LAMP_HIDE_AWAY              17    // Q34, 30
+#define LAMP_POP_BLUE_UP            28    // Q4,  31
+#define LAMP_POP_WHITE_DOWN         12    // Q8,  32
+#define LAMP_POP_SMALL_BLUE         20    // Q10, 33
+#define LAMP_BEHIND_CAPTIVE         8     // Q13, 34
+#define LAMP_HEAD_TILT              57    // Q19, 35
+#define LAMP_HEAD_PLAYER_1_UP       49    // Q15, 36
+#define LAMP_HEAD_PLAYER_2_UP       52    // Q5,  37
+#define LAMP_HEAD_PLAYER_3_UP       53    // Q18, 38
+#define LAMP_HEAD_HIGH_SCORE        56    // Q6,  39
+#define LAMP_HEAD_PLAYER_4_UP       48    // Q16, 40
+#define LAMP_HEAD_BALL_IN_PLAY      54    // Q30, 41
+#define LAMP_HEAD_MATCH             50    // Q33, 42
+#define LAMP_START_BUTTON           51    // Q47, 43
+#define LAMP_LAUNCH_BUTTON          55    // Q43, 44
 
 
 
