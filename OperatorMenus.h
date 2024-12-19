@@ -22,6 +22,13 @@
 #ifndef OPERATOR_MENUS_H
 #define OPERATOR_MENUS_H
 
+#ifdef OPERATOR_MENUS_CPP
+#define NUM_CPC_PAIRS 9
+extern boolean CPCSelectionsHaveBeenRead;
+extern byte CPCPairs[NUM_CPC_PAIRS][2];
+extern byte CPCSelection[3];
+#endif
+
 #define OPERATOR_MENU_ADJ_TYPE_LIST                 1
 #define OPERATOR_MENU_ADJ_TYPE_MIN_MAX              2
 #define OPERATOR_MENU_ADJ_TYPE_MIN_MAX_DEFAULT      3
@@ -29,6 +36,8 @@
 #define OPERATOR_MENU_ADJ_TYPE_SCORE_WITH_DEFAULT   5
 #define OPERATOR_MENU_ADJ_TYPE_SCORE_NO_DEFAULT     6
 #define OPERATOR_MENU_ADJ_TYPE_CPC                  7
+#define OPERATOR_MENU_AUD_DISPLAY_ONLY              10
+#define OPERATOR_MENU_AUD_CLEARABLE                 11
 
 #define OPERATOR_MENU_BUTTON_UNDEFINED   0xF0
 
@@ -36,7 +45,8 @@
 #define OPERATOR_MENU_SELF_TEST_MENU      1
 #define OPERATOR_MENU_AUDITS_MENU         2
 #define OPERATOR_MENU_BASIC_ADJ_MENU      3
-#define OPERATOR_MENU_GAME_ADJ_MENU       4
+#define OPERATOR_MENU_GAME_RULES_LEVEL    4
+#define OPERATOR_MENU_GAME_ADJ_MENU       5
 #define OPERATOR_MENU_NOT_ACTIVE          0xFF
 
 #define OPERATOR_MENU_TEST_LAMPS          0
@@ -75,8 +85,9 @@ class OperatorMenus
     unsigned short GetParameterCallout();
 
     void    SetParameterControls(   byte adjustmentType, byte numAdjustmentValues, byte *adjustmentValues,
-                                    byte parameterCallout, byte currentAdjustmentStorageByte, 
+                                    short parameterCallout, byte currentAdjustmentStorageByte, 
                                     byte *currentAdjustmentByte, unsigned long *currentAdjustmentUL );
+    void    SetAuditControls( unsigned long *currentAuditUL, byte currentAuditStorageByte, byte adjustmentType );                                    
     void    SetLampsLookupCallback(byte (*lampLookup)(byte));
     void    SetSolenoidIDLookupCallback(unsigned short (*solenoidIDLookup)(byte));
     void    SetSolenoidStrengthLookupCallback(byte (*solenoidStrengthLookup)(byte));
@@ -91,6 +102,7 @@ class OperatorMenus
     byte MenuButton;
     byte NumSubLevels;
     byte LastSwitchSeen;
+    byte NumSpeedyChanges;
     boolean TopLevelChanged;
     boolean SubLevelChanged;
     boolean ParameterChanged;
@@ -102,11 +114,12 @@ class OperatorMenus
     byte CurrentAdjustmentStorageByte;
     byte *CurrentAdjustmentByte;
     byte ParameterID;
-    unsigned short ParameterCallout;    
+    short ParameterCallout;    
     unsigned long *CurrentAdjustmentUL;
     unsigned long SoundSettingTimeout;
     unsigned long AdjustmentScore;
 
+    byte NextTestValue;
     byte LastTestValue;
     byte TestDelay;
     boolean CycleTest;
@@ -118,15 +131,15 @@ class OperatorMenus
     unsigned long SavedValue;
     unsigned long ResetHold;
     unsigned long NextSpeedyValueChange;
-    unsigned long NumSpeedyChanges;
     unsigned long LastResetPress;
 
     void StartTestMode(unsigned long currentTime);
     void UpdateSelfTest(unsigned long currentTime);
     void ReadCurrentSwitches();
     byte GetDisplayMaskForSwitches(byte switch1, byte switch2);
-    void HandleEnterButton(unsigned long currentTime, boolean doubleClick=false, boolean resetHeld=false);
+    void HandleEnterButton(boolean doubleClick=false, boolean resetHeld=false, boolean speedyChange=false);
     void ShowParameterValue();
+    void ShowAuditValue();
 
     byte (*LampLookupFunction)(byte);
     byte (*SolenoidStrengthLookupFunction)(byte);

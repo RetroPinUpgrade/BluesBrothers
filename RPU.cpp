@@ -52,6 +52,10 @@ boolean UsesM6800Processor = true;
 boolean UsesM6800Processor = false;
 #endif 
 
+#ifndef RPU_NUMBER_OF_PLAYER_DISPLAYS
+#define RPU_NUMBER_OF_PLAYER_DISPLAYS       4
+#endif
+
 #if (RPU_MPU_ARCHITECTURE<10) 
 
 #ifdef RPU_USE_EXTENDED_SWITCHES_ON_PB4
@@ -1762,8 +1766,12 @@ void RPU_SetDisplayBallInPlay(int value, boolean displayOn, boolean showBothDigi
 #endif
 
 void RPU_CycleAllDisplays(unsigned long curTime, byte digitNum, byte digitValue) {
-  int displayDigit = (curTime/250)%10;
-  if (digitValue!=0xFF) displayDigit = digitValue;
+  int displayDigit;
+  if (digitValue!=0xFF) {
+    displayDigit = digitValue%10;
+  } else {
+    displayDigit = (curTime/250)%10;
+  }
   unsigned long value;
 #if (RPU_OS_NUM_DIGITS==7)
   value = displayDigit*1111111;
@@ -1777,20 +1785,21 @@ void RPU_CycleAllDisplays(unsigned long curTime, byte digitNum, byte digitValue)
   if (digitNum!=0) {
 #if (RPU_OS_NUM_DIGITS==7)
     displayNumToShow = (digitNum-1)/7;
-    displayBlank = (0x40)>>((digitNum-1)%7);
+    displayBlank = (0x01)<<((digitNum-1)%7);
 
 #ifdef RPU_OS_USE_6_DIGIT_CREDIT_DISPLAY_WITH_7_DIGIT_DISPLAYS
     if (displayNumToShow==4) {
-      displayBlank = (0x20)>>((digitNum-1)%6);
+      displayBlank = (0x01)<<((digitNum-1)%6);
     }
 #endif
     
 #else    
     displayNumToShow = (digitNum-1)/6;
-    displayBlank = (0x20)>>((digitNum-1)%6);
+    displayBlank = (0x01)<<((digitNum-1)%6);
 #endif
   }
 
+#if (RPU_NUMBER_OF_PLAYER_DISPLAYS==4)
   for (int count=0; count<5; count++) {
     if (digitNum) {
       RPU_SetDisplay(count, value);
@@ -1800,6 +1809,27 @@ void RPU_CycleAllDisplays(unsigned long curTime, byte digitNum, byte digitValue)
       RPU_SetDisplay(count, value, false);
     }
   }
+#else
+  // show the two player displays
+  for (int count=0; count<2; count++) {
+    if (digitNum) {
+      RPU_SetDisplay(count, value);
+      if (count==displayNumToShow) RPU_SetDisplayBlank(count, displayBlank);
+      else RPU_SetDisplayBlank(count, 0);
+    } else {
+      RPU_SetDisplay(count, value, false);
+    }
+  }
+  // show credit/bip display
+  if (digitNum) {
+    RPU_SetDisplay(4, value);
+    if (displayNumToShow==2) RPU_SetDisplayBlank(4, displayBlank);
+    else RPU_SetDisplayBlank(4, 0);
+  } else {
+    RPU_SetDisplay(4, value, false);
+  }
+#endif
+  
 }
 
 void RPU_SetDisplayMatch(int value, boolean displayOn, boolean showBothDigits) {

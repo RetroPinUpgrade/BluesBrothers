@@ -22,6 +22,7 @@
 #include "RPU_Config.h"
 #include "RPU.h"
 #include "AudioHandler.h"
+#define OPERATOR_MENUS_CPP
 #include "OperatorMenus.h"
 
 #ifndef RPU_NUMBER_OF_PLAYER_DISPLAYS
@@ -90,9 +91,9 @@ OperatorMenus::OperatorMenus() {
   SavedValue = 0;
   ResetHold = 0;
   NextSpeedyValueChange = 0;
-  NumSpeedyChanges = 0;
   LastResetPress = 0;
   LastTestValue = 0;
+  NextTestValue = 0;
   CycleTest = true;
     
   CurrentAdjustmentUL = NULL;
@@ -179,8 +180,17 @@ void OperatorMenus::SetNumSubLevels(byte numSubLevels) {
 }
 
 
+void OperatorMenus::SetAuditControls( unsigned long *currentAuditUL, byte currentAuditStorageByte, byte adjustmentType ) {
+  CurrentAdjustmentUL = currentAuditUL;
+  CurrentAdjustmentStorageByte = currentAuditStorageByte;
+  AdjustmentType = adjustmentType;
+
+  ShowAuditValue();
+}
+
+
 void OperatorMenus::SetParameterControls(   byte adjustmentType, byte numAdjustmentValues, byte *adjustmentValues,
-                                            byte parameterCallout, byte currentAdjustmentStorageByte, 
+                                            short parameterCallout, byte currentAdjustmentStorageByte, 
                                             byte *currentAdjustmentByte, unsigned long *currentAdjustmentUL ) {
   AdjustmentType = adjustmentType;
   NumAdjustmentValues = numAdjustmentValues;
@@ -202,7 +212,7 @@ void OperatorMenus::SetParameterControls(   byte adjustmentType, byte numAdjustm
       }
     }
   }
-  ShowParameterValue(); 
+  ShowParameterValue();
 }
 
 
@@ -245,9 +255,29 @@ void OperatorMenus::ExitOperatorMenu() {
 }
 
 
+void OperatorMenus::ShowAuditValue() {
+  for (byte count=0; count<RPU_NUMBER_OF_PLAYER_DISPLAYS; count++) {
+    if (count==0 && CurrentAdjustmentStorageByte) {
+      RPU_SetDisplay(count, RPU_ReadULFromEEProm(CurrentAdjustmentStorageByte), true);
+    } else {
+      RPU_SetDisplayBlank(count, 0);
+    }
+  }
+}
+
 void OperatorMenus::ShowParameterValue() {
 
   if (AdjustmentType==OPERATOR_MENU_ADJ_TYPE_CPC) {
+    if (CurrentAdjustmentByte) {
+      byte coins = CPCPairs[*CurrentAdjustmentByte][0];
+      byte credits = CPCPairs[*CurrentAdjustmentByte][1];
+      RPU_SetDisplay(0, coins, true, 1);
+      RPU_SetDisplay(1, credits, true, 1);
+    }
+  } else if (AdjustmentType==OPERATOR_MENU_AUD_CLEARABLE || AdjustmentType==OPERATOR_MENU_AUD_DISPLAY_ONLY) {
+    if (CurrentAdjustmentUL) {
+      RPU_SetDisplay(0, *CurrentAdjustmentUL, true, 1);
+    }
   } else {
     if (CurrentAdjustmentByte) {
       RPU_SetDisplay(0, *CurrentAdjustmentByte, true, 1);
@@ -261,7 +291,6 @@ void OperatorMenus::ShowParameterValue() {
       RPU_SetDisplay(1, value1, true, 2);
     }
   }
-
 }
 
 
@@ -272,18 +301,26 @@ int OperatorMenus::UpdateMenu(unsigned long currentTime) {
   if (RPU_ReadSingleSwitchState(EnterButton)) {
     if (ResetHold==0) {
       ResetHold = currentTime;
-    } else if (currentTime > (ResetHold+1300)){
+    } else if (ResetHold!=1 && currentTime > (ResetHold+1300)){
       // Handle held enter button
-      HandleEnterButton(currentTime, false, true);
+      HandleEnterButton(false, true);
+      ResetHold = 1;
+    }
+
+    if (NextSpeedyValueChange==0) {
+      NextSpeedyValueChange = currentTime;
+      NumSpeedyChanges = 0;
+    } else if (NextSpeedyValueChange!=1 && currentTime > (NextSpeedyValueChange+500)) {
+      HandleEnterButton(false, false, true);
+      NextSpeedyValueChange = currentTime;
+      NumSpeedyChanges += 1;
     }
   } else {
     ResetHold = 0;
     NextSpeedyValueChange = 0;
+    NumSpeedyChanges = 0;
   }
-  if (ResetHold!=0 && !RPU_ReadSingleSwitchState(EnterButton)) {
-    ResetHold = 0;
-    NextSpeedyValueChange = 0;
-  }
+
   LastSwitchSeen = SWITCH_STACK_EMPTY;
 
   while ( (curSwitch = RPU_PullFirstFromSwitchStack()) != SWITCH_STACK_EMPTY ) {
@@ -313,7 +350,7 @@ int OperatorMenus::UpdateMenu(unsigned long currentTime) {
       }
       NumSubLevels = 0;
       if (TopLevel==OPERATOR_MENU_SELF_TEST_MENU) NumSubLevels = 6;
-      if (TopLevel==OPERATOR_MENU_AUDITS_MENU) NumSubLevels = 9;
+      if (TopLevel==OPERATOR_MENU_AUDITS_MENU) NumSubLevels = 6;
     } else if (curSwitch==EnterButton) {
       EjectBalls = false;
 
@@ -336,46 +373,66 @@ int OperatorMenus::UpdateMenu(unsigned long currentTime) {
           SubLevelChanged = true;
         } else {
           // Handle enter button for test/audit/adjustment
-          HandleEnterButton(currentTime, resetDoubleClick);
+          HandleEnterButton(resetDoubleClick);
         }
       }
     } else if (curSwitch==ForwardButton) {
       EjectBalls = false;
+      ParameterChanged = false;
       if (TopLevel!=OPERATOR_MENU_RETURN_TO_GAME) {
-        if (SubLevel==OPERATOR_MENU_NOT_ACTIVE) {
-          SubLevel = 0;
-          CurrentAdjustmentByte = NULL;
-          CurrentAdjustmentUL = NULL;
-        } else {
-          SubLevel += 1;
-          if (SubLevel>=NumSubLevels) SubLevel = 0;
+
+        if (NextSpeedyValueChange>1 && 
+            ( AdjustmentType==OPERATOR_MENU_ADJ_TYPE_SCORE || AdjustmentType==OPERATOR_MENU_ADJ_TYPE_SCORE_WITH_DEFAULT ||
+              AdjustmentType==OPERATOR_MENU_ADJ_TYPE_SCORE_NO_DEFAULT ) ) {
+          if (CurrentAdjustmentUL && *CurrentAdjustmentUL>50000) *CurrentAdjustmentUL -= 50000;
+          NextSpeedyValueChange = 1;
+          ShowParameterValue();
+        } else {                
+          if (SubLevel==OPERATOR_MENU_NOT_ACTIVE) {
+            SubLevel = 0;
+            CurrentAdjustmentByte = NULL;
+            CurrentAdjustmentUL = NULL;
+          } else {
+            SubLevel += 1;
+            if (SubLevel>=NumSubLevels) SubLevel = 0;
+          }
+          SubLevelChanged = true;
+          if (TopLevel==OPERATOR_MENU_SELF_TEST_MENU) StartTestMode(currentTime);
+          //ShowParameterValue();
+          RPU_SetDisplayCredits(TopLevel);
+          RPU_SetDisplayBallInPlay(SubLevel + 1);
         }
-        SubLevelChanged = true;
-        if (TopLevel==OPERATOR_MENU_SELF_TEST_MENU) StartTestMode(currentTime);
-        //ShowParameterValue();
-        RPU_SetDisplayCredits(TopLevel);
-        RPU_SetDisplayBallInPlay(SubLevel + 1);
       }
     } else if (curSwitch==BackButton) {
       EjectBalls = false;
+      ParameterChanged = false;
       if (TopLevel!=OPERATOR_MENU_RETURN_TO_GAME) {
-        if (SubLevel==OPERATOR_MENU_NOT_ACTIVE) {
-          SubLevel = 0;
-          CurrentAdjustmentByte = NULL;
-          CurrentAdjustmentUL = NULL;
-        } else {
-          if (SubLevel==0) {
-            if (NumSubLevels) SubLevel = NumSubLevels - 1;
-            else SubLevel = 0;
+
+        if (NextSpeedyValueChange>1 && 
+            ( AdjustmentType==OPERATOR_MENU_ADJ_TYPE_SCORE || AdjustmentType==OPERATOR_MENU_ADJ_TYPE_SCORE_WITH_DEFAULT ||
+              AdjustmentType==OPERATOR_MENU_ADJ_TYPE_SCORE_NO_DEFAULT ) ) {
+          if (CurrentAdjustmentUL) *CurrentAdjustmentUL = 0;
+          NextSpeedyValueChange = 1;
+          ShowParameterValue();
+        } else {                
+          if (SubLevel==OPERATOR_MENU_NOT_ACTIVE) {
+            SubLevel = 0;
+            CurrentAdjustmentByte = NULL;
+            CurrentAdjustmentUL = NULL;
           } else {
-            SubLevel -= 1;
+            if (SubLevel==0) {
+              if (NumSubLevels) SubLevel = NumSubLevels - 1;
+              else SubLevel = 0;
+            } else {
+              SubLevel -= 1;
+            }
           }
+          SubLevelChanged = true;
+          if (TopLevel==OPERATOR_MENU_SELF_TEST_MENU) StartTestMode(currentTime);
+          //ShowParameterValue();
+          RPU_SetDisplayCredits(TopLevel);
+          RPU_SetDisplayBallInPlay(SubLevel + 1);
         }
-        SubLevelChanged = true;
-        if (TopLevel==OPERATOR_MENU_SELF_TEST_MENU) StartTestMode(currentTime);
-        //ShowParameterValue();
-        RPU_SetDisplayCredits(TopLevel);
-        RPU_SetDisplayBallInPlay(SubLevel + 1);
       }
     }
     
@@ -383,20 +440,21 @@ int OperatorMenus::UpdateMenu(unsigned long currentTime) {
 
   // See if any modes need to be updated
   if (TopLevel==OPERATOR_MENU_SELF_TEST_MENU) {
-    if (SubLevel!=OPERATOR_MENU_NOT_ACTIVE) UpdateSelfTest(currentTime);
+    UpdateSelfTest(currentTime);
+  } else if (TopLevel==OPERATOR_MENU_GAME_RULES_LEVEL) {
+    if (ResetHold>1) {
+      unsigned long msLeft = 1300 - (currentTime-ResetHold);
+      RPU_SetDisplay(0, msLeft, true, 0);
+    } else {
+      RPU_SetDisplayBlank(0, 0);
+    }
   }
 
   return 1;
 }
 
 
-void OperatorMenus::HandleEnterButton(unsigned long currentTime, boolean doubleClick, boolean resetHeld) {
-
-  if (resetHeld) {
-    if (NextSpeedyValueChange==0) {
-      NextSpeedyValueChange = (currentTime + 100);      
-    }
-  }
+void OperatorMenus::HandleEnterButton(boolean doubleClick, boolean resetHeld, boolean speedyChange) {
 
   if (TopLevel==OPERATOR_MENU_SELF_TEST_MENU) {
     if (SubLevel==OPERATOR_MENU_TEST_LAMPS) {
@@ -431,6 +489,7 @@ void OperatorMenus::HandleEnterButton(unsigned long currentTime, boolean doubleC
         LastTestTime = 0;
         CycleTest = false;
       } else {
+        for (byte count=0; count<5; count++) RPU_SetDisplayBlank(count, 0xFF);
         CycleTest = true;
       }
       
@@ -444,16 +503,32 @@ void OperatorMenus::HandleEnterButton(unsigned long currentTime, boolean doubleC
       }
     }
   } else if (TopLevel==OPERATOR_MENU_AUDITS_MENU) {
-    
+    if (AdjustmentType==OPERATOR_MENU_AUD_CLEARABLE) {
+      if (resetHeld) {
+        if (CurrentAdjustmentUL) {
+          *CurrentAdjustmentUL = 0;
+          if (CurrentAdjustmentStorageByte) RPU_WriteULToEEProm(CurrentAdjustmentStorageByte, 0);
+          ShowParameterValue();
+        }
+      }
+    }
+  } else if (TopLevel==OPERATOR_MENU_GAME_RULES_LEVEL) {
+    if (CurrentAdjustmentByte && AdjustmentType==OPERATOR_MENU_ADJ_TYPE_LIST && NumAdjustmentValues==2) {
+      if (resetHeld) {
+        *CurrentAdjustmentByte = AdjustmentValues[1];
+        ParameterID = *CurrentAdjustmentByte;
+        ParameterChanged = true;
+      }
+    }
   } else if (TopLevel==OPERATOR_MENU_BASIC_ADJ_MENU || TopLevel==OPERATOR_MENU_GAME_ADJ_MENU) {
     
-    if (CurrentAdjustmentByte && (AdjustmentType == OPERATOR_MENU_ADJ_TYPE_MIN_MAX || AdjustmentType == OPERATOR_MENU_ADJ_TYPE_MIN_MAX_DEFAULT)) {
+    if (CurrentAdjustmentByte && (AdjustmentType == OPERATOR_MENU_ADJ_TYPE_MIN_MAX || AdjustmentType == OPERATOR_MENU_ADJ_TYPE_MIN_MAX_DEFAULT || AdjustmentType == OPERATOR_MENU_ADJ_TYPE_CPC)) {
       byte curVal = *CurrentAdjustmentByte;
 
       if (RPU_GetUpDownSwitchState()) {
         curVal += 1;
         if (curVal > AdjustmentValues[1]) {
-          if (AdjustmentType == OPERATOR_MENU_ADJ_TYPE_MIN_MAX) curVal = AdjustmentValues[0];
+          if (AdjustmentType == OPERATOR_MENU_ADJ_TYPE_MIN_MAX || AdjustmentType == OPERATOR_MENU_ADJ_TYPE_CPC) curVal = AdjustmentValues[0];
           else {
             if (curVal > 99) curVal = AdjustmentValues[0];
             else curVal = 99;
@@ -469,6 +544,8 @@ void OperatorMenus::HandleEnterButton(unsigned long currentTime, boolean doubleC
       }
 
       *CurrentAdjustmentByte = curVal;
+      ParameterID = *CurrentAdjustmentByte;
+      ParameterChanged = true;
       if (CurrentAdjustmentStorageByte) RPU_WriteByteToEEProm(CurrentAdjustmentStorageByte, curVal);
 /*
       if (curState == MACHINE_STATE_ADJUST_SOUND_SELECTOR) {
@@ -500,22 +577,39 @@ void OperatorMenus::HandleEnterButton(unsigned long currentTime, boolean doubleC
         if (curVal == AdjustmentValues[valCount]) {
           if (upDownState) {
             if (valCount < (NumAdjustmentValues - 1)) newIndex = valCount + 1;
+            else newIndex = 0;
           } else {
             if (valCount > 0) newIndex = valCount - 1;
           }
+          break;
         }
       }
       *CurrentAdjustmentByte = AdjustmentValues[newIndex];
+      ParameterID = newIndex;
+      ParameterChanged = true;
       if (CurrentAdjustmentStorageByte) RPU_WriteByteToEEProm(CurrentAdjustmentStorageByte, AdjustmentValues[newIndex]);
-    } else if (CurrentAdjustmentUL && (AdjustmentType == OPERATOR_MENU_ADJ_TYPE_SCORE_WITH_DEFAULT || AdjustmentType == OPERATOR_MENU_ADJ_TYPE_SCORE_NO_DEFAULT)) {
+    } else if (CurrentAdjustmentUL && 
+                ( AdjustmentType == OPERATOR_MENU_ADJ_TYPE_SCORE_WITH_DEFAULT || AdjustmentType == OPERATOR_MENU_ADJ_TYPE_SCORE_NO_DEFAULT || 
+                  AdjustmentType == OPERATOR_MENU_ADJ_TYPE_SCORE ) ) {
       unsigned long curVal = *CurrentAdjustmentUL;
+      unsigned long changeVal = 10000;
+      if (NumSpeedyChanges>6) changeVal = 25000;
 
-      if (RPU_GetUpDownSwitchState()) curVal += 5000;
-      else if (curVal >= 5000) curVal -= 5000;
-      if (curVal > 100000) curVal = 0;
-      if (AdjustmentType == OPERATOR_MENU_ADJ_TYPE_SCORE_NO_DEFAULT && curVal == 0) curVal = 5000;
-      *CurrentAdjustmentUL = curVal;
-      if (CurrentAdjustmentStorageByte) RPU_WriteULToEEProm(CurrentAdjustmentStorageByte, curVal);
+      if (speedyChange) {
+        if (RPU_GetUpDownSwitchState()) curVal += changeVal;
+        else if (curVal >= changeVal) curVal -= changeVal;
+        if (AdjustmentType == OPERATOR_MENU_ADJ_TYPE_SCORE_NO_DEFAULT && curVal == 0) curVal = 1000;
+        *CurrentAdjustmentUL = curVal;
+        ParameterChanged = true;
+        if (CurrentAdjustmentStorageByte) RPU_WriteULToEEProm(CurrentAdjustmentStorageByte, curVal);
+      } else if (resetHeld==false) {
+        if (RPU_GetUpDownSwitchState()) curVal += 1000;
+        else if (curVal >= 1000) curVal -= 1000;
+        if (AdjustmentType == OPERATOR_MENU_ADJ_TYPE_SCORE_NO_DEFAULT && curVal == 0) curVal = 1000;
+        *CurrentAdjustmentUL = curVal;
+        ParameterChanged = true;
+        if (CurrentAdjustmentStorageByte) RPU_WriteULToEEProm(CurrentAdjustmentStorageByte, curVal);
+      }
     }
 
     ShowParameterValue();
@@ -611,7 +705,7 @@ void OperatorMenus::UpdateSelfTest(unsigned long currentTime) {
   } else if (SubLevel==OPERATOR_MENU_TEST_DISPLAYS) {
 
     if (!CycleTest) {
-      if (LastTestTime==0 || currentTime>(LastTestTime+250)) {
+      if (LastTestTime==0 || currentTime>(LastTestTime+100)) {
         LastTestTime = currentTime;
         LastTestValue += 1;
         RPU_CycleAllDisplays(currentTime, LastTestValue, SavedValue);
@@ -628,7 +722,10 @@ void OperatorMenus::UpdateSelfTest(unsigned long currentTime) {
         
   } else if (SubLevel==OPERATOR_MENU_TEST_SOLENOIDS) {
     if (currentTime>(LastTestTime+((unsigned long)TestDelay * 1000))) {
-      RPU_SetDisplay(0, LastTestValue, true);      
+
+      if (CycleTest) {
+        LastTestValue = NextTestValue;
+      }
       LastTestTime = currentTime;
 
       // make sure next value is used
@@ -637,6 +734,8 @@ void OperatorMenus::UpdateSelfTest(unsigned long currentTime) {
         else if (SolenoidIDLookupFunction(LastTestValue)==OPERATOR_MENU_VALUE_OUT_OF_RANGE) LastTestValue = 1;
         else break;
       }
+
+      RPU_SetDisplay(0, LastTestValue, true);      
 
       unsigned short solenoidIndex = SolenoidIDLookupFunction(LastTestValue);
       byte solenoidStrength = SolenoidStrengthLookupFunction(LastTestValue);
@@ -648,18 +747,18 @@ void OperatorMenus::UpdateSelfTest(unsigned long currentTime) {
           // This is a continuous solenoid to be tested
           RPU_FireContinuousSolenoid(solenoidIndex / 256, 5);
         } else {
-          
+          RPU_PushToSolenoidStack(solenoidIndex & 0x00FF, solenoidStrength);
         }
       }
-      
-      if (LastTestValue<15) {
-        RPU_PushToSolenoidStack(LastTestValue, 10);
-      } else {
-        RPU_FireContinuousSolenoid(0x10<<(LastTestValue-15), 5);
-      }
+//      if (LastTestValue<15) {
+//        RPU_PushToSolenoidStack(LastTestValue, 10);
+//      } else {
+//        RPU_FireContinuousSolenoid(0x10<<(LastTestValue-15), 5);
+//      }
+
+      NextTestValue = LastTestValue + 1;
 
       if (CycleTest) {
-        LastTestValue += 1;
         SavedValue = 0;
       } else {
         SavedValue += 1;
@@ -700,6 +799,7 @@ void OperatorMenus::StartTestMode(unsigned long currentTime) {
     LastTestTime = currentTime;    
     RPU_EnableSolenoidStack();
     CycleTest = true;
+    NextTestValue = 1;
     LastTestValue = 1;
     TestDelay = 1;
   } else if (SubLevel==OPERATOR_MENU_TEST_SWITCHES) {
