@@ -18,7 +18,7 @@
 #include <EEPROM.h>
 
 #define GAME_MAJOR_VERSION  2024
-#define GAME_MINOR_VERSION  17
+#define GAME_MINOR_VERSION  18
 #define DEBUG_MESSAGES  1
 
 #if (DEBUG_MESSAGES==1)
@@ -588,6 +588,7 @@ byte StatusModeInactivityDelay = 10;
 #define GAME_RULES_PROGRESSIVE  4
 #define GAME_RULES_CUSTOM       5
 
+boolean WaitForPurgedLock = false;
 boolean ResetJakeProgressEachBall = true;
 boolean ResetElwoodProgressEachBall = true;
 boolean ResetBandProgressEachBall = true;
@@ -751,6 +752,7 @@ boolean LoadRuleDefaults(byte ruleLevel) {
     ElwoodClearsToQualify = 2;
     JakeClearsToQualify = 1;
     AlternatingSpinnerAccelerator = 10;
+    BallSaveNumSeconds = 10;
     BallSaveOnMinimodes = 15;
     BallSaveOnMultiball = 15;
     BallSaveOnAddABall = 30;
@@ -768,6 +770,7 @@ boolean LoadRuleDefaults(byte ruleLevel) {
     ElwoodClearsToQualify = 3;
     JakeClearsToQualify = 2;
     AlternatingSpinnerAccelerator = 5;
+    BallSaveNumSeconds = 0;
     BallSaveOnMinimodes = 5;
     BallSaveOnMultiball = 5;
     BallSaveOnAddABall = 10;
@@ -1973,6 +1976,9 @@ void UpdateLiftGate() {
 #define OM_GAME_ADJ_FINISHED                        24
 #define SOUND_EFFECT_AP_LOCK_BEHAVIOR               (1800 + OM_GAME_ADJ_LOCK_BEHAVIOR)
 
+unsigned long SoundSettingTimeout;
+unsigned long SoundTestStart;
+byte SoundTestSequence;
   
 void RunOperatorMenu() {
   if (!Menus.UpdateMenu(CurrentTime)) {
@@ -1985,6 +1991,7 @@ void RunOperatorMenu() {
     } else {
       RPU_SetDisplayBallInPlay(CurrentBallInPlay);
     }
+    SoundSettingTimeout = 0;
     return;
   }
 
@@ -2005,6 +2012,7 @@ void RunOperatorMenu() {
 
   if (Menus.HasTopLevelChanged()) {
     // Play an audio prompt for the top level
+    SoundTestStart = 0;
     Audio.StopAllAudio();
     Audio.PlaySound((unsigned short)topLevel + SOUND_EFFECT_AP_TOP_LEVEL_MENU_ENTRY, AUDIO_PLAY_TYPE_WAV_TRIGGER, 10);
     if (Menus.GetTopLevel()==OPERATOR_MENU_GAME_RULES_LEVEL) Menus.SetNumSubLevels(4);
@@ -2015,10 +2023,18 @@ void RunOperatorMenu() {
     if (Menus.GetTopLevel()==OPERATOR_MENU_GAME_ADJ_MENU) Menus.SetNumSubLevels(OM_GAME_ADJ_FINISHED);
   }
   if (Menus.HasSubLevelChanged()) {
+    SoundTestStart = 0;
     // Play an audio prompt for the sub level    
     Audio.StopAllAudio();
     if (topLevel==OPERATOR_MENU_SELF_TEST_MENU) {
       Audio.PlaySound((unsigned short)subLevel + SOUND_EFFECT_AP_TEST_LAMPS, AUDIO_PLAY_TYPE_WAV_TRIGGER, 10);
+
+      if (subLevel==OPERATOR_MENU_TEST_SOUNDS) {
+        SoundTestStart = CurrentTime + 1000;
+        SoundTestSequence = 0;
+      } else {
+        SoundTestStart = 0;
+      }
     } else if (topLevel==OPERATOR_MENU_AUDITS_MENU) {
       unsigned long *currentAdjustmentUL = NULL;
       byte currentAdjustmentStorageByte = 0;
@@ -2454,269 +2470,46 @@ void RunOperatorMenu() {
       if (LoadRuleDefaults(GameRulesSelection)) {
         WriteParameters();
       }
+    } else if (Menus.GetTopLevel()==OPERATOR_MENU_BASIC_ADJ_MENU) {
+      if (Menus.GetSubLevel()==OM_BASIC_ADJ_IDS_MUSIC_VOLUME) {
+        if (SoundSettingTimeout) Audio.StopAllAudio();
+        Audio.PlaySound(SOUND_EFFECT_BACKGROUND_SONG_1, AUDIO_PLAY_TYPE_WAV_TRIGGER, MusicVolume);
+        Audio.SetMusicVolume(MusicVolume);
+        SoundSettingTimeout = CurrentTime + 5000;
+      } else if (Menus.GetSubLevel()==OM_BASIC_ADJ_IDS_SOUNDFX_VOLUME) {
+        if (SoundSettingTimeout) Audio.StopAllAudio();
+        Audio.PlaySound(SOUND_EFFECT_CORRECT_MODE_SHOT, AUDIO_PLAY_TYPE_WAV_TRIGGER, SoundEffectsVolume);
+        Audio.SetSoundFXVolume(SoundEffectsVolume);
+        SoundSettingTimeout = CurrentTime + 5000;
+      } else if (Menus.GetSubLevel()==OM_BASIC_ADJ_IDS_CALLOUTS_VOLUME) {
+        if (SoundSettingTimeout) Audio.StopAllAudio();
+        Audio.PlaySound(SOUND_EFFECT_VP_JACKPOT_1, AUDIO_PLAY_TYPE_WAV_TRIGGER, CalloutsVolume);
+        Audio.SetNotificationsVolume(CalloutsVolume);
+        SoundSettingTimeout = CurrentTime + 3000;        
+      }
     }
   }
+
+  if (SoundSettingTimeout && CurrentTime>SoundSettingTimeout) {
+    SoundSettingTimeout = 0;
+    Audio.StopAllAudio();
+  }
+
+  if (SoundTestStart && CurrentTime>SoundTestStart) {
+    if (SoundTestSequence==0) {
+      PlayBackgroundSong(SOUND_EFFECT_BACKGROUND_SONG_1);
+      SoundTestSequence = 1;
+    } else if (SoundTestSequence==1 && CurrentTime>(SoundTestStart+5000)) {
+      PlaySoundEffect(SOUND_EFFECT_BIG_HIT_1);
+      SoundTestSequence = 2;
+    } else if (SoundTestSequence==2 && CurrentTime>(SoundTestStart+10000)) {
+      Audio.QueuePrioritizedNotification(SOUND_EFFECT_VP_RAWHIDE_JACKPOTS_COLLECTED, 0, 10, CurrentTime);
+      SoundTestSequence = 3;
+    }
+  }
+  
 }
 
-/*
-int RunSelfTest(int curState, boolean curStateChanged) {
-  int returnState = curState;
-  CurrentNumPlayers = 0;
-
-  if (curStateChanged) {
-    // Send a stop-all command and reset the sample-rate offset, in case we have
-    //  reset while the WAV Trigger was already playing.
-    Audio.StopAllAudio();
-    RPU_TurnOffAllLamps();
-    Audio.StopAllAudio();
-    int modeMapping = SelfTestStateToCalloutMap[-1 - curState];
-    Audio.PlaySound((unsigned short)modeMapping, AUDIO_PLAY_TYPE_WAV_TRIGGER, 10);
-  } else {
-    if (SoundSettingTimeout && CurrentTime > SoundSettingTimeout) {
-      SoundSettingTimeout = 0;
-      Audio.StopAllAudio();
-    }
-  }
-
-  // Any state that's greater than MACHINE_STATE_TEST_DONE is handled by the Base Self-test code
-  // Any that's less, is machine specific, so we handle it here.
-  if (curState >= MACHINE_STATE_TEST_DONE) {
-    byte cpcSelection = 0xFF;
-    byte chuteNum = 0xFF;
-    if (curState == MACHINE_STATE_ADJUST_CPC_CHUTE_1) chuteNum = 0;
-    if (curState == MACHINE_STATE_ADJUST_CPC_CHUTE_2) chuteNum = 1;
-    if (curState == MACHINE_STATE_ADJUST_CPC_CHUTE_3) chuteNum = 2;
-    if (chuteNum != 0xFF) cpcSelection = GetCPCSelection(chuteNum);
-    returnState = RunBaseSelfTest(returnState, curStateChanged, CurrentTime, SW_CREDIT_RESET, SW_TILT, SW_SELF_TEST_ON_MATRIX);
-    if (chuteNum != 0xFF) {
-      if (cpcSelection != GetCPCSelection(chuteNum)) {
-        byte newCPC = GetCPCSelection(chuteNum);
-        Audio.StopAllAudio();
-        Audio.PlaySound(SOUND_EFFECT_SELF_TEST_CPC_START + newCPC, AUDIO_PLAY_TYPE_WAV_TRIGGER, 10);
-      }
-    }
-  } else {
-    byte curSwitch = RPU_PullFirstFromSwitchStack();
-
-    if ((curSwitch == SW_SELF_TEST_SWITCH || curSwitch == SW_SELF_TEST_ON_MATRIX) && (CurrentTime - GetLastSelfTestChangedTime()) > 50) {
-      SetLastSelfTestChangedTime(CurrentTime);
-      if (RPU_GetUpDownSwitchState()) returnState -= 1;
-      else returnState += 1;
-    }
-
-    //    if (curSwitch == SW_SLAM) {
-    //      returnState = MACHINE_STATE_ATTRACT;
-    //    }
-
-    if (curStateChanged) {
-      for (int count = 0; count < RPU_NUMBER_OF_PLAYERS_ALLOWED; count++) {
-        RPU_SetDisplay(count, 0);
-        RPU_SetDisplayBlank(count, 0x00);
-      }
-      RPU_SetDisplayCredits(0, false);
-#if (RPU_MPU_ARCHITECTURE<10)
-      RPU_SetDisplayBallInPlay(MACHINE_STATE_TEST_SOUNDS - curState);
-#else
-      RPU_SetDisplayBallInPlay(MACHINE_STATE_TEST_BOOT - curState);
-#endif
-      currentAdjustmentByte = NULL;
-      CurrentAdjustmentUL = NULL;
-      currentAdjustmentStorageByte = 0;
-
-      AdjustmentType = OPERATOR_MENU_ADJ_TYPE_MIN_MAX;
-      adjustmentValues[0] = 0;
-      adjustmentValues[1] = 1;
-      TempValue = 0;
-
-      switch (curState) {
-        case MACHINE_STATE_ADJUST_FREEPLAY:
-          currentAdjustmentByte = (byte *)&FreePlayMode;
-          currentAdjustmentStorageByte = EEPROM_FREE_PLAY_BYTE;
-          break;
-        case MACHINE_STATE_ADJUST_BALL_SAVE:
-          AdjustmentType = OPERATOR_MENU_ADJ_TYPE_LIST;
-          NumadjustmentValues = 5;
-          adjustmentValues[1] = 5;
-          adjustmentValues[2] = 10;
-          adjustmentValues[3] = 15;
-          adjustmentValues[4] = 20;
-          currentAdjustmentByte = &BallSaveNumSeconds;
-          currentAdjustmentStorageByte = EEPROM_BALL_SAVE_BYTE;
-          break;
-        case MACHINE_STATE_ADJUST_MUSIC_VOLUME:
-          AdjustmentType = OPERATOR_MENU_ADJ_TYPE_MIN_MAX;
-          adjustmentValues[0] = 0;
-          adjustmentValues[1] = 10;
-          currentAdjustmentByte = &MusicVolume;
-          currentAdjustmentStorageByte = EEPROM_MUSIC_VOLUME_BYTE;
-          break;
-        case MACHINE_STATE_ADJUST_SFX_VOLUME:
-          AdjustmentType = OPERATOR_MENU_ADJ_TYPE_MIN_MAX;
-          adjustmentValues[0] = 0;
-          adjustmentValues[1] = 10;
-          currentAdjustmentByte = &SoundEffectsVolume;
-          currentAdjustmentStorageByte = EEPROM_SFX_VOLUME_BYTE;
-          break;
-        case MACHINE_STATE_ADJUST_CALLOUTS_VOLUME:
-          AdjustmentType = OPERATOR_MENU_ADJ_TYPE_MIN_MAX;
-          adjustmentValues[0] = 0;
-          adjustmentValues[1] = 10;
-          currentAdjustmentByte = &CalloutsVolume;
-          currentAdjustmentStorageByte = EEPROM_CALLOUTS_VOLUME_BYTE;
-          break;
-        case MACHINE_STATE_ADJUST_TOURNAMENT_SCORING:
-          currentAdjustmentByte = (byte *)&TournamentScoring;
-          currentAdjustmentStorageByte = EEPROM_TOURNAMENT_SCORING_BYTE;
-          break;
-        case MACHINE_STATE_ADJUST_TILT_WARNING:
-          adjustmentValues[1] = 2;
-          currentAdjustmentByte = &MaxTiltWarnings;
-          currentAdjustmentStorageByte = EEPROM_TILT_WARNING_BYTE;
-          break;
-        case MACHINE_STATE_ADJUST_AWARD_OVERRIDE:
-          AdjustmentType = OPERATOR_MENU_ADJ_TYPE_MIN_MAX_DEFAULT;
-          adjustmentValues[1] = 7;
-          currentAdjustmentByte = &ScoreAwardReplay;
-          currentAdjustmentStorageByte = EEPROM_AWARD_OVERRIDE_BYTE;
-          break;
-        case MACHINE_STATE_ADJUST_BALLS_OVERRIDE:
-          AdjustmentType = OPERATOR_MENU_ADJ_TYPE_LIST;
-          NumadjustmentValues = 3;
-          adjustmentValues[0] = 3;
-          adjustmentValues[1] = 5;
-          adjustmentValues[2] = 99;
-          currentAdjustmentByte = &BallsPerGame;
-          currentAdjustmentStorageByte = EEPROM_BALLS_OVERRIDE_BYTE;
-          break;
-        case MACHINE_STATE_ADJUST_SCROLLING_SCORES:
-          currentAdjustmentByte = (byte *)&ScrollingScores;
-          currentAdjustmentStorageByte = EEPROM_SCROLLING_SCORES_BYTE;
-          break;
-        case MACHINE_STATE_ADJUST_EXTRA_BALL_AWARD:
-          AdjustmentType = OPERATOR_MENU_ADJ_TYPE_SCORE_WITH_DEFAULT;
-          CurrentAdjustmentUL = &ExtraBallValue;
-          currentAdjustmentStorageByte = EEPROM_EXTRA_BALL_SCORE_UL;
-          break;
-        case MACHINE_STATE_ADJUST_SPECIAL_AWARD:
-          AdjustmentType = OPERATOR_MENU_ADJ_TYPE_SCORE_WITH_DEFAULT;
-          CurrentAdjustmentUL = &SpecialValue;
-          currentAdjustmentStorageByte = EEPROM_SPECIAL_SCORE_UL;
-          break;
-        case MACHINE_STATE_ADJUST_CREDIT_RESET_HOLD_TIME:
-          AdjustmentType = OPERATOR_MENU_ADJ_TYPE_LIST;
-          NumadjustmentValues = 5;
-          adjustmentValues[0] = 0;
-          adjustmentValues[1] = 1;
-          adjustmentValues[2] = 2;
-          adjustmentValues[3] = 3;
-          adjustmentValues[4] = 99;
-          currentAdjustmentByte = &TimeRequiredToResetGame;
-          currentAdjustmentStorageByte = EEPROM_CRB_HOLD_TIME;
-          break;
-        case MACHINE_STATE_ADJUST_DONE:
-          returnState = MACHINE_STATE_ATTRACT;
-          break;
-      }
-    }
-
-    // Change value, if the switch is hit
-    if (curSwitch == SW_CREDIT_RESET) {
-
-      if (currentAdjustmentByte && (AdjustmentType == OPERATOR_MENU_ADJ_TYPE_MIN_MAX || AdjustmentType == OPERATOR_MENU_ADJ_TYPE_MIN_MAX_DEFAULT)) {
-        byte curVal = *currentAdjustmentByte;
-
-        if (RPU_GetUpDownSwitchState()) {
-          curVal += 1;
-          if (curVal > adjustmentValues[1]) {
-            if (AdjustmentType == OPERATOR_MENU_ADJ_TYPE_MIN_MAX) curVal = adjustmentValues[0];
-            else {
-              if (curVal > 99) curVal = adjustmentValues[0];
-              else curVal = 99;
-            }
-          }
-        } else {
-          if (curVal == adjustmentValues[0]) {
-            if (AdjustmentType == OPERATOR_MENU_ADJ_TYPE_MIN_MAX_DEFAULT) curVal = 99;
-            else curVal = adjustmentValues[1];
-          } else {
-            curVal -= 1;
-          }
-        }
-
-        *currentAdjustmentByte = curVal;
-        if (currentAdjustmentStorageByte) EEPROM.write(currentAdjustmentStorageByte, curVal);
-
-        if (curState == MACHINE_STATE_ADJUST_SOUND_SELECTOR) {
-          Audio.StopAllAudio();
-          Audio.PlaySound(SOUND_EFFECT_SELF_TEST_AUDIO_OPTIONS_START + curVal, AUDIO_PLAY_TYPE_WAV_TRIGGER, 10);
-        } else if (curState == MACHINE_STATE_ADJUST_MUSIC_VOLUME) {
-          if (SoundSettingTimeout) Audio.StopAllAudio();
-          Audio.PlaySound(SOUND_EFFECT_BACKGROUND_SONG_1, AUDIO_PLAY_TYPE_WAV_TRIGGER, curVal);
-          Audio.SetMusicVolume(curVal);
-          SoundSettingTimeout = CurrentTime + 5000;
-        } else if (curState == MACHINE_STATE_ADJUST_SFX_VOLUME) {
-          if (SoundSettingTimeout) Audio.StopAllAudio();
-          Audio.PlaySound(SOUND_EFFECT_BONUS_COUNT, AUDIO_PLAY_TYPE_WAV_TRIGGER, curVal);
-          Audio.SetSoundFXVolume(curVal);
-          SoundSettingTimeout = CurrentTime + 5000;
-        } else if (curState == MACHINE_STATE_ADJUST_CALLOUTS_VOLUME) {
-          if (SoundSettingTimeout) Audio.StopAllAudio();
-          Audio.PlaySound(SOUND_EFFECT_VP_EXTRA_BALL, AUDIO_PLAY_TYPE_WAV_TRIGGER, curVal);
-          Audio.SetNotificationsVolume(curVal);
-          SoundSettingTimeout = CurrentTime + 3000;
-        }
-
-      } else if (currentAdjustmentByte && AdjustmentType == OPERATOR_MENU_ADJ_TYPE_LIST) {
-        byte valCount = 0;
-        byte curVal = *currentAdjustmentByte;
-        byte newIndex = 0;
-        boolean upDownState = RPU_GetUpDownSwitchState();
-        for (valCount = 0; valCount < (NumadjustmentValues); valCount++) {
-          if (curVal == adjustmentValues[valCount]) {
-            if (upDownState) {
-              if (valCount < (NumadjustmentValues - 1)) newIndex = valCount + 1;
-            } else {
-              if (valCount > 0) newIndex = valCount - 1;
-            }
-          }
-        }
-        *currentAdjustmentByte = adjustmentValues[newIndex];
-        if (currentAdjustmentStorageByte) EEPROM.write(currentAdjustmentStorageByte, adjustmentValues[newIndex]);
-      } else if (CurrentAdjustmentUL && (AdjustmentType == OPERATOR_MENU_ADJ_TYPE_SCORE_WITH_DEFAULT || AdjustmentType == OPERATOR_MENU_ADJ_TYPE_SCORE_NO_DEFAULT)) {
-        unsigned long curVal = *CurrentAdjustmentUL;
-
-        if (RPU_GetUpDownSwitchState()) curVal += 5000;
-        else if (curVal >= 5000) curVal -= 5000;
-        if (curVal > 100000) curVal = 0;
-        if (AdjustmentType == OPERATOR_MENU_ADJ_TYPE_SCORE_NO_DEFAULT && curVal == 0) curVal = 5000;
-        *CurrentAdjustmentUL = curVal;
-        if (currentAdjustmentStorageByte) RPU_WriteULToEEProm(currentAdjustmentStorageByte, curVal);
-      }
-
-    }
-
-    // Show current value
-    if (currentAdjustmentByte != NULL) {
-      RPU_SetDisplay(0, (unsigned long)(*currentAdjustmentByte), true);
-    } else if (CurrentAdjustmentUL != NULL) {
-      RPU_SetDisplay(0, (*CurrentAdjustmentUL), true);
-    }
-
-  }
-
-  if (returnState == MACHINE_STATE_ATTRACT) {
-    // If any variables have been set to non-override (99), return
-    // them to dip switch settings
-    // Balls Per Game, Player Loses On Ties, Novelty Scoring, Award Score
-    //    DecodeDIPSwitchParameters();
-    RPU_SetDisplayCredits(Credits, !FreePlayMode);
-    ReadStoredParameters();
-  }
-
-  return returnState;
-}
-
-*/
 
 
 ////////////////////////////////////////////////////////////////////////////
@@ -3293,8 +3086,12 @@ int InitNewBall(bool curStateChanged) {
     RPU_TurnOffAllLamps();
     BallFirstSwitchHitTime = 0;
 
-    RPU_SetDisableFlippers(false);
-    RPU_EnableSolenoidStack();
+    if (LockHandling==LOCK_HANDLING_PURGE_LOCKS || LockHandling==LOCK_HANDLING_PURGE_LOCKS_WITH_RELOCKS) {
+      if (WaitForPurgedLock) {
+        RPU_SetDisableFlippers(true);
+        RPU_DisableSolenoidStack();
+      }
+    }
     RPU_SetDisplayCredits(Credits, !FreePlayMode);
     if (CurrentNumPlayers > 1 && (CurrentBallInPlay != 1 || CurrentPlayer != 0) && !SamePlayerShootsAgain) AlertPlayerUp();
     SamePlayerShootsAgain = false;
@@ -3381,12 +3178,12 @@ int InitNewBall(bool curStateChanged) {
     LastTimeSaucerSeen = 0;
 
     // Reset Drop Targets
-    LeftDropTargets.ResetDropTargets(CurrentTime + 100, true);
-    RightDropTargets.ResetDropTargets(CurrentTime + 100, true);
+    LeftDropTargets.ResetDropTargets(CurrentTime + 100, true, true);
+    RightDropTargets.ResetDropTargets(CurrentTime + 100, true, true);
 
-    RPU_PushToSolenoidStack(SOL_TOP_GATE_CLOSE, TOP_GATE_CLOSE_SOLENOID_STRENGTH);
+    RPU_PushToSolenoidStack(SOL_TOP_GATE_CLOSE, TOP_GATE_CLOSE_SOLENOID_STRENGTH, true);
 
-    if (!RPU_ReadSingleSwitchState(SW_SHOOTER_LANE)) RPU_PushToTimedSolenoidStack(SOL_SERVE_BALL, BallServeSolenoidStrength, CurrentTime + 1000);
+    if (!RPU_ReadSingleSwitchState(SW_SHOOTER_LANE)) RPU_PushToTimedSolenoidStack(SOL_SERVE_BALL, BallServeSolenoidStrength, CurrentTime + 1000, true);
     LastTimeBallServed = CurrentTime + 1000;
     BallLaunched = false;
     
@@ -3408,6 +3205,9 @@ int InitNewBall(bool curStateChanged) {
   byte ballInShooterLane = RPU_ReadSingleSwitchState(SW_SHOOTER_LANE) ? 1 : 0;
   
   if ( ballInShooterLane && (CountBallsInTrough() + ballInShooterLane) == (TotalBallsLoaded - NumberOfBallsLocked) ) {
+    WaitForPurgedLock = false;
+    RPU_SetDisableFlippers(false);
+    RPU_EnableSolenoidStack();
     return MACHINE_STATE_NORMAL_GAMEPLAY;
   } else {
 
@@ -3710,7 +3510,6 @@ int ManageGameMode() {
   CheckFlipperStatus();
   CheckSaucerForStuckBall();
   UpdateMachineLocks();
-  //UpdateLiftGate();
   UpdateTopGate();
 
   if (NextBonusPayoutTime && (CurrentTime > NextBonusPayoutTime)) {
@@ -4286,14 +4085,26 @@ int ManageGameMode() {
           ReleaseLiftGate();
           GameModeStage = 2;
         } else {
-          NumberOfBallsLocked = 2;
-          MachineLocks |= BALL_2_LOCKED;
-          if (NumberOfBallsInPlay==1) {
-            RPU_PushToTimedSolenoidStack(SOL_SERVE_BALL, BallServeSolenoidStrength, CurrentTime + 500);
-            BallLaunched = false;
+          if (MachineLocks==0) {
+            NumberOfBallsLocked = 1;
+            MachineLocks |= BALL_1_LOCKED;
+            if (NumberOfBallsInPlay==1) {
+              RPU_PushToTimedSolenoidStack(SOL_SERVE_BALL, BallServeSolenoidStrength, CurrentTime + 500);
+              BallLaunched = false;
+            } else {
+              NumberOfBallsInPlay = 1;
+              GameModeStage = 1;
+            }
           } else {
-            NumberOfBallsInPlay = 1;
-            GameModeStage = 1;
+            NumberOfBallsLocked = 2;
+            MachineLocks |= BALL_2_LOCKED;
+            if (NumberOfBallsInPlay==1) {
+              RPU_PushToTimedSolenoidStack(SOL_SERVE_BALL, BallServeSolenoidStrength, CurrentTime + 500);
+              BallLaunched = false;
+            } else {
+              NumberOfBallsInPlay = 1;
+              GameModeStage = 1;
+            }
           }
         }
         GameModeEndTime = CurrentTime + 2000;
@@ -4310,9 +4121,12 @@ int ManageGameMode() {
       }
 
       if (GameModeStage == 1 && CurrentTime > (LastShooterKickTime + 1000) && CountBallsInTrough()) {
-        RPU_PushToTimedSolenoidStack(SOL_SERVE_BALL, BallServeSolenoidStrength, CurrentTime + 500);
-        BallLaunched = false;
-        GameModeStage = 0;
+        if ( (MachineLocks & BALL_1_LOCKED) && (MachineLocks & BALL_2_LOCKED) ) {
+          // Clearing out the trough because we're in lock 2 (so all balls should be on playfield or locked)
+          RPU_PushToTimedSolenoidStack(SOL_SERVE_BALL, BallServeSolenoidStrength, CurrentTime + 500);
+          BallLaunched = false;
+          GameModeStage = 0;
+        }
       }
 
       if (GameModeStage >= 1 && (CurrentTime > GameModeEndTime)) {
@@ -4718,11 +4532,13 @@ int ManageGameMode() {
             if (NumberOfBallsInPlay == 0) {
 
               // if we don't hold locks, release them
-              if (LockHandling==LOCK_HANDLING_PURGE_LOCKS || LockHandling==LOCK_HANDLING_PURGE_LOCKS_WITH_RELOCKS) {
-                if (MachineLocks) ReleaseLiftGate();
+              if (LockHandling==LOCK_HANDLING_PURGE_LOCKS || LockHandling==LOCK_HANDLING_PURGE_LOCKS_WITH_RELOCKS) {                
+                if (MachineLocks) {
+                  WaitForPurgedLock = true;                    
+                  ReleaseLiftGate();
+                }
                 UpdateLockStatus(true);
               }
-
               
               Display_ClearOverride(0xFF);
               Audio.StopAllAudio();
@@ -4910,7 +4726,6 @@ int ShowMatchSequence(boolean curStateChanged) {
       ReleaseLiftGate(750);
     }    
   }
-  UpdateLiftGate();
 
   if (NumMatchSpins < 40) {
     if (CurrentTime > (MatchSequenceStartTime + MatchDelay)) {
@@ -5426,26 +5241,28 @@ void HandleCaptiveBallHit() {
     PlaySoundEffect(SOUND_EFFECT_RICOCHET_0 + CurrentTime % 8);
   } else {
     if ( (MachineLocks & BALL_LOCKS_MASK) == 0x00 ) {
-      // No locks yet, so qualify one
-      if (PlayerLocks[CurrentPlayer] & BALL_LOCKS_AVAILABLE_MASK) PlayerLocks[CurrentPlayer] |= BALL_2_LOCK_AVAILABLE;
-      else PlayerLocks[CurrentPlayer] |= BALL_1_LOCK_AVAILABLE;
-      // Just in case the player thinks they have a lock, clear out player locks
-      PlayerLocks[CurrentPlayer] &= ~BALL_LOCKS_MASK;
-      openGate = true;
+      // No balls in lock, but there may be virtual, purged, or shared locks
+      if ( (PlayerLocks[CurrentPlayer]&BALL_LOCKS_MASK)==0x01 ||
+           (PlayerLocks[CurrentPlayer]&BALL_LOCKS_AVAILABLE_MASK)==0x01 ) {
+        PlayerLocks[CurrentPlayer] |= BALL_2_LOCK_AVAILABLE;
+        openGate = true;
+      } else if ( PlayerLocks[CurrentPlayer]==0x00 ) {
+        PlayerLocks[CurrentPlayer] |= BALL_1_LOCK_AVAILABLE;
+        openGate = true;
+      }
     } else if ( (MachineLocks & BALL_LOCKS_MASK) == 0x01 ) {
       // There's one machine lock, so it either needs to be stolen
       // or we can qualify lock 2
       if ( (PlayerLocks[CurrentPlayer] & BALL_LOCKS_MASK) == 0x00 ) {
         // We can steal lock 1
-        QueueNotification(SOUND_EFFECT_VP_LOCK_1_STOLEN, 10);
+        if (LockHandling==LOCK_HANDLING_LOCK_STEALING) QueueNotification(SOUND_EFFECT_VP_LOCK_1_STOLEN, 10);
+        // else we should have a lock shared callout
+        else QueueNotification(SOUND_EFFECT_VP_BALL_1_LOCKED, 10);
         PlayerLocks[CurrentPlayer] = BALL_1_LOCKED;
       } else {
         // This player already has this lock -- qualify lock 2
         PlayerLocks[CurrentPlayer] |= BALL_2_LOCK_AVAILABLE;
         openGate = true;
-        // This purposely ignores the case where there are more
-        // player locks than machine locks because it shouldn't
-        // happen.
       }
     } else if ( (MachineLocks & BALL_LOCKS_MASK) == 0x03 ) {
       if ( (PlayerLocks[CurrentPlayer] & BALL_LOCKS_MASK) == 0x00 ) {
@@ -5848,7 +5665,8 @@ void HandleGamePlaySwitches(byte switchHit) {
                 SetGameMode(GAME_MODE_LOCK_BALL_1);
               }
             } else {
-              SetGameMode(GAME_MODE_LOCK_BALL_1);
+              if (PlayerLocks[CurrentPlayer] & BALL_1_LOCKED) SetGameMode(GAME_MODE_LOCK_BALL_2);
+              else SetGameMode(GAME_MODE_LOCK_BALL_1);
             }
           }
           // Close the top gate (hide away)
