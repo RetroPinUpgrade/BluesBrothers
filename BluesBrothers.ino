@@ -18,7 +18,7 @@
 #include <EEPROM.h>
 
 #define GAME_MAJOR_VERSION  2024
-#define GAME_MINOR_VERSION  18
+#define GAME_MINOR_VERSION  19
 #define DEBUG_MESSAGES  1
 
 #if (DEBUG_MESSAGES==1)
@@ -103,6 +103,7 @@ boolean MachineStateChanged = true;
 #define EEPROM_SLINGSHOT_STRENGTH                 135 
 #define EEPROM_POP_BUMPER_STRENGTH                136
 #define EEPROM_GAME_RULES_SELECTION               137
+#define EEPROM_MATCH_FEATURE_BYTE                 138
 #define EEPROM_EXTRA_BALL_SCORE_UL                160
 #define EEPROM_SPECIAL_SCORE_UL                   164
 
@@ -387,14 +388,14 @@ byte BallServeSolenoidStrength = 50;
 #define BALL_SEARCH_NUMBER_OF_SOLENOIDS   12
 byte BallSearchLastSolenoidFired = 0xFF;
 byte BallSearchSolenoid[BALL_SEARCH_NUMBER_OF_SOLENOIDS] = {
-  SOL_TOP_GATE_OPEN, SOL_TOP_GATE_CLOSE, SOL_POP_BUMPER, SOL_TOP_SLING, SOL_LIFT_GATE, 
+  SOL_TOP_GATE_OPEN, SOL_TOP_GATE_CLOSE, SOL_POP_BUMPER, SOL_TOP_SLING,  
   SOL_LEFT_SLING, SOL_RIGHT_SLING, SOL_LEFT_GATE_OPEN, SOL_LEFT_GATE_CLOSE,
-  SOL_DROP_BANK_R_RESET, SOL_DROP_BANK_L_RESET, SOL_SAUCER
+  SOL_DROP_BANK_R_RESET, SOL_DROP_BANK_L_RESET, SOL_SAUCER, SOL_LIFT_GATE
   };
 byte BallSearchSolenoidStrength[BALL_SEARCH_NUMBER_OF_SOLENOIDS] = {
-  TOP_GATE_OPEN_SOLENOID_STRENGTH, TOP_GATE_CLOSE_SOLENOID_STRENGTH, 4, 4, LIFT_GATE_SOLENOID_STRENGTH,
+  TOP_GATE_OPEN_SOLENOID_STRENGTH, TOP_GATE_CLOSE_SOLENOID_STRENGTH, 4, 4,
   4, 4, LEFT_GATE_OPEN_SOLENOID_STRENGTH, LEFT_GATE_CLOSE_SOLENOID_STRENGTH,
-  2, 2, 10
+  2, 2, 10, LIFT_GATE_SOLENOID_STRENGTH
 };
 
 
@@ -418,6 +419,7 @@ byte NumberOfBallsInPlay = 0;
 byte NumberOfBallsLocked = 0;
 byte LampType = 0;
 boolean FreePlayMode = false;
+boolean MatchEnabled = true;
 boolean HighScoreReplay = true;
 boolean MatchFeature = true;
 boolean TournamentScoring = false;
@@ -497,6 +499,7 @@ unsigned long LeftFlipperHoldTime;
 unsigned long RightFlipperHoldTime;
 unsigned long LastFlipperSeen;
 unsigned long LastTimeSaucerSeen;
+unsigned long WaitingForTrapSwitchToHold;
 
 
 /*********************************************************************
@@ -692,6 +695,7 @@ void SetAllParameterDefaults() {
   ScoreAwardReplay = 0x03;
   BallsPerGame = 3;
   ScrollingScores = true;
+  MatchFeature = true;
   ExtraBallValue = 20000;
   SpecialValue = 40000;
   TimeRequiredToResetGame = 2;
@@ -813,6 +817,7 @@ void WriteParameters(boolean onlyWriteRulesParameters = true) {
     RPU_WriteByteToEEProm(EEPROM_AWARD_OVERRIDE_BYTE, ScoreAwardReplay);
     RPU_WriteByteToEEProm(EEPROM_BALLS_OVERRIDE_BYTE, BallsPerGame);
     RPU_WriteByteToEEProm(EEPROM_SCROLLING_SCORES_BYTE, ScrollingScores);
+    RPU_WriteByteToEEProm(EEPROM_MATCH_FEATURE_BYTE, MatchFeature);
     
     RPU_WriteULToEEProm(EEPROM_EXTRA_BALL_SCORE_UL, ExtraBallValue);
     RPU_WriteULToEEProm(EEPROM_SPECIAL_SCORE_UL, SpecialValue);
@@ -833,7 +838,6 @@ void WriteParameters(boolean onlyWriteRulesParameters = true) {
     RPU_WriteULToEEProm(RPU_TOTAL_PLAYS_EEPROM_START_BYTE, 0);
     RPU_WriteULToEEProm(RPU_TOTAL_REPLAYS_EEPROM_START_BYTE, 0);
     RPU_WriteULToEEProm(RPU_TOTAL_HISCORE_BEATEN_START_BYTE, 0);
-
   }
 
   RPU_WriteByteToEEProm(EEPROM_BALL_SAVE_BYTE, BallSaveNumSeconds);
@@ -891,6 +895,7 @@ void ReadStoredParameters() {
     ScoreAwardReplay = ReadSetting(EEPROM_AWARD_OVERRIDE_BYTE, 0x03, 0x07);
     BallsPerGame = ReadSetting(EEPROM_BALLS_OVERRIDE_BYTE, 3, 10);
     ScrollingScores = ReadSetting(EEPROM_SCROLLING_SCORES_BYTE, true, true);
+    MatchFeature = ReadSetting(EEPROM_MATCH_FEATURE_BYTE, true, true);
 
     CPCSelection[0] = ReadSetting(RPU_CPC_CHUTE_1_SELECTION_BYTE, 4, 8);
     CPCSelection[1] = ReadSetting(RPU_CPC_CHUTE_2_SELECTION_BYTE, 4, 8);
@@ -1913,7 +1918,8 @@ void UpdateLiftGate() {
 #define OM_BASIC_ADJ_IDS_CPC_1                  18
 #define OM_BASIC_ADJ_IDS_CPC_2                  19
 #define OM_BASIC_ADJ_IDS_CPC_3                  20
-#define OM_BASIC_ADJ_FINISHED                   21
+#define OM_BASIC_ADJ_IDS_MATCH_FEATURE          21
+#define OM_BASIC_ADJ_FINISHED                   22
 #define SOUND_EFFECT_AP_FREEPLAY                (1740 + OM_BASIC_ADJ_IDS_FREEPLAY)
 #define SOUND_EFFECT_AP_BALL_SAVE_SECONDS       (1740 + OM_BASIC_ADJ_IDS_BALL_SAVE)
 #define SOUND_EFFECT_AP_TILT_WARNINGS           (1740 + OM_BASIC_ADJ_IDS_TILT_WARNINGS)
@@ -1935,6 +1941,7 @@ void UpdateLiftGate() {
 #define SOUND_EFFECT_AP_ADJ_CPC_1               (1740 + OM_BASIC_ADJ_IDS_CPC_1)
 #define SOUND_EFFECT_AP_ADJ_CPC_2               (1740 + OM_BASIC_ADJ_IDS_CPC_2)
 #define SOUND_EFFECT_AP_ADJ_CPC_3               (1740 + OM_BASIC_ADJ_IDS_CPC_3)
+#define SOUND_EFFECT_AP_MATCH_FEATURE           (1740 + OM_BASIC_ADJ_IDS_MATCH_FEATURE)
 
 #define SOUND_EFFECT_OM_EASY_RULES_INSTRUCTIONS           1770
 #define SOUND_EFFECT_OM_MEDIUM_RULES_INSTRUCTIONS         1771
@@ -2217,6 +2224,10 @@ void RunOperatorMenu() {
           currentAdjustmentByte = &(CPCSelection[2]);
           currentAdjustmentStorageByte = RPU_CPC_CHUTE_3_SELECTION_BYTE;
           parameterCallout = SOUND_EFFECT_OM_CPC_VALUES;
+          break;
+        case OM_BASIC_ADJ_IDS_MATCH_FEATURE:
+          currentAdjustmentByte = (byte *)&MatchFeature;
+          currentAdjustmentStorageByte = EEPROM_MATCH_FEATURE_BYTE;
           break;
       }
 
@@ -3176,6 +3187,7 @@ int InitNewBall(bool curStateChanged) {
     LeftOutlaneSaveEndTime = 0;
     RightOutlaneSaveEndTime = 0;
     LastTimeSaucerSeen = 0;
+    WaitingForTrapSwitchToHold = 0;
 
     // Reset Drop Targets
     LeftDropTargets.ResetDropTargets(CurrentTime + 100, true, true);
@@ -3322,9 +3334,20 @@ void UpdateDropTargets() {
 
 
 void UpdateMachineLocks() {
-  if (RPU_ReadSingleSwitchState(SW_TRAP)) {
+
+  boolean lockWithoutSwitch = false;
+  if (  WaitingForTrapSwitchToHold!=0 && CurrentTime>(WaitingForTrapSwitchToHold+2000) /* && 
+        CurrentTime > (LastSwitchHitTime + 1000) */) {
+    // it appears that a second ball has been locked, but is not sitting
+    // on the SW_TRAP switch
+    WaitingForTrapSwitchToHold = 0;
+    lockWithoutSwitch = true;
+  }
+  
+  if (RPU_ReadSingleSwitchState(SW_TRAP) || lockWithoutSwitch) {
+    if (WaitingForTrapSwitchToHold && CurrentTime>(WaitingForTrapSwitchToHold+500)) WaitingForTrapSwitchToHold = 0;
     if (TrapSwitchClosedTime == 0) TrapSwitchClosedTime = CurrentTime;
-    if (CurrentTime > (TrapSwitchClosedTime + 1500)) {
+    if (CurrentTime > (TrapSwitchClosedTime + 1500) || lockWithoutSwitch) {
       TrapSwitchClosedTime = CurrentTime;
       if (GameMode==GAME_MODE_MULTIBALL_3) {
         if (MB3SuperJackpotQualified==3) {
@@ -3533,6 +3556,11 @@ int ManageGameMode() {
     if (solToFire!=BallSearchLastSolenoidFired) {
       BallSearchLastSolenoidFired = solToFire;
       RPU_PushToSolenoidStack(BallSearchSolenoid[BallSearchLastSolenoidFired], BallSearchSolenoidStrength[BallSearchLastSolenoidFired], true);
+      if (BallSearchSolenoid[BallSearchLastSolenoidFired]==SOL_LIFT_GATE) {
+        if (MachineLocks) {
+          UpdateLockStatus(true);
+        }
+      }
       if (DEBUG_MESSAGES) {
         char buf[128];
         sprintf(buf, "Ball Search firing %d for %d\n", BallSearchSolenoid[BallSearchLastSolenoidFired], BallSearchSolenoidStrength[BallSearchLastSolenoidFired]);
@@ -5622,6 +5650,7 @@ void HandleGamePlaySwitches(byte switchHit) {
 
     case SW_TRAP:
       if (MachineLocks == 0) {
+        WaitingForTrapSwitchToHold = 0;
         if ( GameMode==GAME_MODE_MULTIBALL_3 ) {
           if (MB3SuperJackpotQualified==2) {
             // We're ready for a super jackpot
@@ -5683,6 +5712,7 @@ void HandleGamePlaySwitches(byte switchHit) {
         RPU_PushToTimedSolenoidStack(SOL_TOP_GATE_CLOSE, TOP_GATE_CLOSE_SOLENOID_STRENGTH, CurrentTime + 500, true);
         //PlaySoundEffect(SOUND_EFFECT_TOP_GATE_CLOSING);
         if (TopGateAvailableTime == 0) TopGateAvailableTime = CurrentTime + TOP_GATE_DELAY_TIME_MS;
+        WaitingForTrapSwitchToHold = CurrentTime;
       }
 
       ValidateAndRegisterPlayfieldSwitch();
@@ -5739,7 +5769,12 @@ int RunGamePlayMode(int curState, boolean curStateChanged) {
           RPU_SetLampState(PlayerUpLamps[count], 0);
         }
 
-        returnState = MACHINE_STATE_MATCH_MODE;
+        if (MatchEnabled) {
+          returnState = MACHINE_STATE_MATCH_MODE;
+        } else {
+          ReleaseLiftGate(750);
+          returnState = MACHINE_STATE_ATTRACT;
+        }
       }
       else returnState = MACHINE_STATE_INIT_NEW_BALL;
     }
