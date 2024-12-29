@@ -284,11 +284,21 @@ void OperatorMenus::ShowParameterValue() {
       RPU_SetDisplayBlank(1, 0);
     } else if (CurrentAdjustmentUL) {
       unsigned long value0, value1;
+#ifdef RPU_OS_USE_7_DIGIT_DISPLAYS
+      value0 = (*CurrentAdjustmentUL) / 10000000;
+      value1 = (*CurrentAdjustmentUL) % 10000000;
+#else      
       value0 = (*CurrentAdjustmentUL) / 1000000;
       value1 = (*CurrentAdjustmentUL) % 1000000;
-      if (value0) RPU_SetDisplay(0, value0, true, 1);
-      else RPU_SetDisplayBlank(0, 0);
-      RPU_SetDisplay(1, value1, true, 2);
+#endif      
+      if (value0) {
+        RPU_SetDisplay(0, value0, true, 1);
+        RPU_SetDisplayBlank(1, 0xFF);
+        RPU_SetDisplay(1, value1, false);
+      } else {
+        RPU_SetDisplayBlank(0, 0);
+        RPU_SetDisplay(1, value1, true, 2);
+      }
     }
   }
 }
