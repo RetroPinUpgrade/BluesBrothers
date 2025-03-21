@@ -18,7 +18,7 @@
 #include <EEPROM.h>
 
 #define GAME_MAJOR_VERSION  2024
-#define GAME_MINOR_VERSION  20
+#define GAME_MINOR_VERSION  21
 #define DEBUG_MESSAGES  1
 
 #if (DEBUG_MESSAGES==1)
@@ -35,8 +35,8 @@
 //  0 - Attract Mode
 //  negative - no longer used
 //  positive - game play
-boolean InOperatorMenu = false;
 char MachineState = 0;
+boolean InOperatorMenu = false;
 boolean MachineStateChanged = true;
 #define MACHINE_STATE_ATTRACT         0
 #define MACHINE_STATE_INIT_GAMEPLAY   1
@@ -46,22 +46,6 @@ boolean MachineStateChanged = true;
 #define MACHINE_STATE_BALL_OVER       100
 #define MACHINE_STATE_MATCH_MODE      110
 #define MACHINE_STATE_DIAGNOSTICS     120
-
-#define MACHINE_STATE_ADJUST_FREEPLAY                         (MACHINE_STATE_TEST_DONE-1)
-#define MACHINE_STATE_ADJUST_BALL_SAVE                        (MACHINE_STATE_TEST_DONE-2)
-#define MACHINE_STATE_ADJUST_SOUND_SELECTOR                   (MACHINE_STATE_TEST_DONE-3)
-#define MACHINE_STATE_ADJUST_MUSIC_VOLUME                     (MACHINE_STATE_TEST_DONE-4)
-#define MACHINE_STATE_ADJUST_SFX_VOLUME                       (MACHINE_STATE_TEST_DONE-5)
-#define MACHINE_STATE_ADJUST_CALLOUTS_VOLUME                  (MACHINE_STATE_TEST_DONE-6)
-#define MACHINE_STATE_ADJUST_TOURNAMENT_SCORING               (MACHINE_STATE_TEST_DONE-7)
-#define MACHINE_STATE_ADJUST_TILT_WARNING                     (MACHINE_STATE_TEST_DONE-8)
-#define MACHINE_STATE_ADJUST_AWARD_OVERRIDE                   (MACHINE_STATE_TEST_DONE-9)
-#define MACHINE_STATE_ADJUST_BALLS_OVERRIDE                   (MACHINE_STATE_TEST_DONE-10)
-#define MACHINE_STATE_ADJUST_SCROLLING_SCORES                 (MACHINE_STATE_TEST_DONE-11)
-#define MACHINE_STATE_ADJUST_EXTRA_BALL_AWARD                 (MACHINE_STATE_TEST_DONE-12)
-#define MACHINE_STATE_ADJUST_SPECIAL_AWARD                    (MACHINE_STATE_TEST_DONE-13)
-#define MACHINE_STATE_ADJUST_CREDIT_RESET_HOLD_TIME           (MACHINE_STATE_TEST_DONE-14)
-#define MACHINE_STATE_ADJUST_DONE                             (MACHINE_STATE_TEST_DONE-15)
 
 
 // Indices of EEPROM save locations
@@ -104,6 +88,7 @@ boolean MachineStateChanged = true;
 #define EEPROM_POP_BUMPER_STRENGTH                136
 #define EEPROM_GAME_RULES_SELECTION               137
 #define EEPROM_MATCH_FEATURE_BYTE                 138
+#define EEPROM_MINIMODE_REQUALIFY_BEHAVIOR        139
 #define EEPROM_EXTRA_BALL_SCORE_UL                160
 #define EEPROM_SPECIAL_SCORE_UL                   164
 
@@ -150,7 +135,7 @@ boolean MachineStateChanged = true;
 #define SOUND_EFFECT_JAIL_BREAK               19
 #define SOUND_EFFECT_BALL_OVER                20
 #define SOUND_EFFECT_GAME_OVER                21
-#define SOUND_EFFECT_TOP_GATE_OPENING         22
+#define SOUND_EFFECT_POLICE_WHOOP             22
 #define SOUND_EFFECT_TOP_GATE_CLOSING         23
 #define SOUND_EFFECT_DROP_TARGET_BONUS_SOUND  24
 #define SOUND_EFFECT_BAND_HIT_1               25
@@ -219,14 +204,14 @@ boolean MachineStateChanged = true;
 #define SOUND_EFFECT_BONUS_15                 95
 #define SOUND_EFFECT_BONUS_16                 96
 #define SOUND_EFFECT_BONUS_17                 97
+#define SOUND_EFFECT_BIG_SWITCH_PULLED        98
+#define SOUND_EFFECT_THREE_STICK_CLICKS       99
 #define SOUND_EFFECT_STARTUP_1                100
 #define SOUND_EFFECT_STARTUP_2                101
 
-
-#define SOUND_EFFECT_COIN_DROP_1        100
-#define SOUND_EFFECT_COIN_DROP_2        101
-#define SOUND_EFFECT_COIN_DROP_3        102
-#define SOUND_EFFECT_MACHINE_START      120
+#define SOUND_EFFECT_COIN_DROP_1              105
+#define SOUND_EFFECT_COIN_DROP_2              106
+#define SOUND_EFFECT_COIN_DROP_3              107
 
 #define SOUND_EFFECT_BACKGROUND_SONG_1                400
 #define SOUND_EFFECT_BACKGROUND_SONG_2                401
@@ -248,12 +233,14 @@ boolean MachineStateChanged = true;
 #define SOUND_EFFECT_FULL_WIZ_MUSIC_1                 430
 #define SOUND_EFFECT_FULL_WIZ_MUSIC_2                 431
 #define SOUND_EFFECT_FULL_WIZ_MUSIC_3                 432
+#define SOUND_EFFECT_FULL_WIZ_START_SONG              435
 #define SOUND_EFFECT_RALLY_MUSIC_1                    450
 #define SOUND_EFFECT_RALLY_MUSIC_2                    451
 #define SOUND_EFFECT_RALLY_MUSIC_3                    452
 #define SOUND_EFFECT_RALLY_MUSIC_4                    453
 #define SOUND_EFFECT_RALLY_MUSIC_5                    454
-#define SOUND_EFFECT_INTRO_LOOP                       460
+#define SOUND_EFFECT_INTRO_LOOP_1                     460
+#define SOUND_EFFECT_INTRO_LOOP_2                     461
 
 
 // Game play status callouts
@@ -343,6 +330,8 @@ boolean MachineStateChanged = true;
 #define SOUND_EFFECT_VP_HIT_FLIP_FOR_BONUS              385
 #define SOUND_EFFECT_VP_LAUNCH_BUTTON_TO_SAVE           386
 #define SOUND_EFFECT_VP_FULL_WIZARD_INTRO               387
+#define SOUND_EFFECT_VP_FULL_WIZARD_OPENING_SHOT        388
+#define SOUND_EFFECT_VP_FULL_WIZARD_EXPLANATION         389
 
 
 #define SOUND_EFFECT_DIAG_START                   1900
@@ -363,7 +352,7 @@ boolean MachineStateChanged = true;
 #define SOUND_EFFECT_DIAG_STARTING_DIAGNOSTICS    1914
 
 
-#define MAX_DISPLAY_BONUS     21
+#define MAX_DISPLAY_BONUS     24
 #define TILT_WARNING_DEBOUNCE_TIME      1000
 
 //#define SAUCER_SOLENOID_STRENGTH            10
@@ -483,6 +472,7 @@ boolean TimersPaused = true;
 boolean AllowResetAfterBallOne = true;
 boolean LeftFlipperBeingHeld;
 boolean RightFlipperBeingHeld;
+boolean LiftGateOpenedDuringBallSearch;
 
 unsigned long CurrentScores[RPU_NUMBER_OF_PLAYERS_ALLOWED];
 unsigned long BallFirstSwitchHitTime = 0;
@@ -509,8 +499,11 @@ unsigned long WaitingForTrapSwitchToHold;
 *********************************************************************/
 int SpinnerProgress[RPU_NUMBER_OF_PLAYERS_ALLOWED];
 int SpinnerHitsToQualifyBand = 500;
+int SpinnerHitsRequiredPerPlayer[RPU_NUMBER_OF_PLAYERS_ALLOWED];
+int PopBumperProgress;
 
 byte LastSpinnerSeen;
+byte MinimodeRequalifyBehavior;
 byte JakeStatus[RPU_NUMBER_OF_PLAYERS_ALLOWED];
 byte ElwoodStatus[RPU_NUMBER_OF_PLAYERS_ALLOWED];
 byte JakeCompletions[RPU_NUMBER_OF_PLAYERS_ALLOWED];
@@ -525,6 +518,8 @@ byte BuildBonusLamps[RPU_NUMBER_OF_PLAYERS_ALLOWED];
 byte BuildBonusLampsCompletions[RPU_NUMBER_OF_PLAYERS_ALLOWED];
 byte LeftOutlaneSaveSeconds[RPU_NUMBER_OF_PLAYERS_ALLOWED];
 byte RightOutlaneSaveSeconds[RPU_NUMBER_OF_PLAYERS_ALLOWED];
+byte ElwoodClearsRequiredPerPlayer[RPU_NUMBER_OF_PLAYERS_ALLOWED];
+byte JakeClearsRequiredPerPlayer[RPU_NUMBER_OF_PLAYERS_ALLOWED];
 byte ElwoodClearsToQualify = 2;
 byte JakeClearsToQualify = 1;
 byte BallSaveOnMinimodes = 5;
@@ -552,6 +547,10 @@ byte MB3SuperJackpotQualified;
 byte GameRulesSelection;
 byte AlternatingSpinnerAccelerator;
 byte StatusModeInactivityDelay = 10;
+byte TempPopStrength;
+byte TempSlingStrength;
+byte WizardShotLit;
+byte CurrentWizardShot;
 
 #define BALL_1_LOCK_AVAILABLE     0x10
 #define BALL_2_LOCK_AVAILABLE     0x20
@@ -592,6 +591,19 @@ byte StatusModeInactivityDelay = 10;
 #define GAME_RULES_PROGRESSIVE  4
 #define GAME_RULES_CUSTOM       5
 
+#define WIZARD_SHOT_JAKE        1
+#define WIZARD_SHOT_LEFT_BANK   2
+#define WIZARD_SHOT_RIGHT_BANK  3
+#define WIZARD_SHOT_FLIP        4
+#define WIZARD_SHOT_SAVE_GATE   5
+#define WIZARD_SHOT_SPINNER     6
+
+#define MINIMODE_REQUALIFY_SAME_EACH_TIME           0
+#define MINIMODE_REQUALIFY_DOUBLE_DIFFICULTY        1
+#define MINIMODE_REQUALIFY_MUST_FINISH_MINIWIZARD   2
+
+boolean AllowGameToStartWithWizard = false;
+boolean StartGameInWizardMode = false;
 boolean WaitForPurgedLock = false;
 boolean ResetJakeProgressEachBall = true;
 boolean ResetElwoodProgressEachBall = true;
@@ -604,6 +616,7 @@ boolean BallLaunched;
 boolean AddABallUsed;
 boolean TopGateCloseSoundPlayed;
 
+unsigned long WizardShotOrder[RPU_NUMBER_OF_PLAYERS_ALLOWED];
 unsigned long MiniModeTimeLeft = 0;
 unsigned long MiniModeMultiplierExpiration = 0;
 unsigned long LastJakeHit[4];
@@ -627,12 +640,14 @@ unsigned long LeftSpinnerLitTime;
 unsigned long LastFlipLaneTime;
 unsigned long LastDropTargetHitTime;
 unsigned long CollectFlipBonusTimeout;
+unsigned long CollectFlipBonusWarningPlayed;
 unsigned long NextBonusPayoutTime;
 unsigned long LeftOutlaneSaveEndTime;
 unsigned long RightOutlaneSaveEndTime;
 unsigned long WizardShotsCompleted;
 unsigned long WizardShotsRotateTime;
 unsigned long BuildBonusLampsCompletionTime;
+unsigned long ShotIndicatorRunning;
 
 #define BUILD_BONUS_LAMP_LEFT_INLANE    0x01
 #define BUILD_BONUS_LAMP_SAUCER         0x02
@@ -641,21 +656,21 @@ unsigned long BuildBonusLampsCompletionTime;
 #define BUILD_BONUS_LAMP_RIGHT_INLANE   0x10
 #define BUILD_BONUS_LAMPS_COMPLETE      0x1F
 
-#define WIZARD_SHOT_E1            0x0001
-#define WIZARD_SHOT_L             0x0002
-#define WIZARD_SHOT_W             0x0004
-#define WIZARD_SHOT_SPINNER       0x0008
-#define WIZARD_SHOT_O1            0x0010
-#define WIZARD_SHOT_O2            0x0020
-#define WIZARD_SHOT_D             0x0040
-#define WIZARD_SHOT_J             0x0080
-#define WIZARD_SHOT_A             0x0100
-#define WIZARD_SHOT_K             0x0200
-#define WIZARD_SHOT_E2            0x0400
-#define WIZARD_SHOT_RIGHT_FLIP    0x0800
-#define WIZARD_SHOT_SAVE_GATE     0x1000
-#define WIZARD_SHOT_SAUCER        0x2000
-#define WIZARD_SHOTS_COMPLETE     0x3FFF
+#define MINI_WIZARD_SHOT_E1            0x0001
+#define MINI_WIZARD_SHOT_L             0x0002
+#define MINI_WIZARD_SHOT_W             0x0004
+#define MINI_WIZARD_SHOT_SPINNER       0x0008
+#define MINI_WIZARD_SHOT_O1            0x0010
+#define MINI_WIZARD_SHOT_O2            0x0020
+#define MINI_WIZARD_SHOT_D             0x0040
+#define MINI_WIZARD_SHOT_J             0x0080
+#define MINI_WIZARD_SHOT_A             0x0100
+#define MINI_WIZARD_SHOT_K             0x0200
+#define MINI_WIZARD_SHOT_E2            0x0400
+#define MINI_WIZARD_SHOT_RIGHT_FLIP    0x0800
+#define MINI_WIZARD_SHOT_SAVE_GATE     0x1000
+#define MINI_WIZARD_SHOT_SAUCER        0x2000
+#define MINI_WIZARD_SHOTS_COMPLETE     0x3FFF
 
 #define LEFT_GATE_OPEN_TIME_MS  30000
 #define LEFT_GATE_DELAY_TIME_MS 10000
@@ -714,6 +729,7 @@ void SetAllParameterDefaults() {
   GameRulesSelection = GAME_RULES_MEDIUM;
   ElwoodClearsToQualify = 2;
   JakeClearsToQualify = 1;
+  MinimodeRequalifyBehavior = MINIMODE_REQUALIFY_DOUBLE_DIFFICULTY;
   AlternatingSpinnerAccelerator = 10;
   BallSaveOnMinimodes = 10;
   BallSaveOnMultiball = 10;
@@ -753,6 +769,7 @@ boolean LoadRuleDefaults(byte ruleLevel) {
     ResetQualifiedModesEachBall = false;
     OutlaneBallSaves = true;
     BonusCollectHurryUp = 60;
+    MinimodeRequalifyBehavior = MINIMODE_REQUALIFY_SAME_EACH_TIME;
   } else if (ruleLevel==GAME_RULES_MEDIUM) {
     ElwoodClearsToQualify = 2;
     JakeClearsToQualify = 1;
@@ -771,6 +788,7 @@ boolean LoadRuleDefaults(byte ruleLevel) {
     ResetQualifiedModesEachBall = false;
     OutlaneBallSaves = true;
     BonusCollectHurryUp = 30;
+    MinimodeRequalifyBehavior = MINIMODE_REQUALIFY_DOUBLE_DIFFICULTY;
   } else if (ruleLevel==GAME_RULES_HARD) {
     ElwoodClearsToQualify = 3;
     JakeClearsToQualify = 2;
@@ -789,6 +807,7 @@ boolean LoadRuleDefaults(byte ruleLevel) {
     ResetQualifiedModesEachBall = true;
     OutlaneBallSaves = false;
     BonusCollectHurryUp = 15;
+    MinimodeRequalifyBehavior = MINIMODE_REQUALIFY_MUST_FINISH_MINIWIZARD;
   } else {
     return false;
   }
@@ -829,8 +848,8 @@ void WriteParameters(boolean onlyWriteRulesParameters = true) {
     RPU_WriteByteToEEProm(EEPROM_PLUNGER_FULL_STRENGTH, ShooterKickFullStrength);
     RPU_WriteByteToEEProm(EEPROM_PLUNGER_SOFT_STRENGTH, ShooterKickLightStrength);
     RPU_WriteByteToEEProm(EEPROM_TROUGH_EJECT_STRENGTH, BallServeSolenoidStrength);
-    RPU_WriteByteToEEProm(EEPROM_SLINGSHOT_STRENGTH, SolenoidAssociatedSwitches[0].solenoidHoldTime);
-    RPU_WriteByteToEEProm(EEPROM_POP_BUMPER_STRENGTH, SolenoidAssociatedSwitches[3].solenoidHoldTime);
+    RPU_WriteByteToEEProm(EEPROM_SLINGSHOT_STRENGTH, TempSlingStrength);
+    RPU_WriteByteToEEProm(EEPROM_POP_BUMPER_STRENGTH, TempPopStrength);
 
     // Set baseline for audits
     RPU_WriteByteToEEProm(RPU_CHUTE_1_COINS_START_BYTE, 0);
@@ -860,6 +879,9 @@ void WriteParameters(boolean onlyWriteRulesParameters = true) {
   RPU_WriteByteToEEProm(EEPROM_BALL_SAVE_ON_ADD_A_BALL, BallSaveOnAddABall);
   RPU_WriteByteToEEProm(EEPROM_BALL_SAVE_ON_MINI_WIZARD, BallSaveOnMiniWizard);
   RPU_WriteByteToEEProm(EEPROM_BALL_SAVE_ON_WIZARD, BallSaveOnWizard);
+  RPU_WriteByteToEEProm(EEPROM_MINIMODE_REQUALIFY_BEHAVIOR, MinimodeRequalifyBehavior);
+ 
+  
 }
 
 void ReadStoredParameters() {
@@ -917,8 +939,12 @@ void ReadStoredParameters() {
     ShooterKickFullStrength = ReadSetting(EEPROM_PLUNGER_FULL_STRENGTH, 4, 8);
     ShooterKickLightStrength = ReadSetting(EEPROM_PLUNGER_SOFT_STRENGTH, 2, 5);
     BallServeSolenoidStrength = ReadSetting(EEPROM_TROUGH_EJECT_STRENGTH, 50, 60);
-    SolenoidAssociatedSwitches[0].solenoidHoldTime = ReadSetting(EEPROM_SLINGSHOT_STRENGTH, 4, 8); 
-    SolenoidAssociatedSwitches[3].solenoidHoldTime = ReadSetting(EEPROM_POP_BUMPER_STRENGTH, 4, 8);
+    TempSlingStrength = ReadSetting(EEPROM_SLINGSHOT_STRENGTH, 4, 8);
+    TempPopStrength = ReadSetting(EEPROM_POP_BUMPER_STRENGTH, 4, 8);
+    SolenoidAssociatedSwitches[0].solenoidHoldTime = TempSlingStrength;
+    SolenoidAssociatedSwitches[1].solenoidHoldTime = TempSlingStrength;
+    SolenoidAssociatedSwitches[2].solenoidHoldTime = TempSlingStrength;
+    SolenoidAssociatedSwitches[3].solenoidHoldTime = TempPopStrength;
 
     // Read game rules
     GameRulesSelection = ReadSetting(EEPROM_GAME_RULES_SELECTION, GAME_RULES_MEDIUM, GAME_RULES_CUSTOM);
@@ -943,6 +969,7 @@ void ReadStoredParameters() {
     BallSaveOnAddABall = ReadSetting(EEPROM_BALL_SAVE_ON_ADD_A_BALL, 30, 40);
     BallSaveOnMiniWizard = ReadSetting(EEPROM_BALL_SAVE_ON_MINI_WIZARD, 30, 60);
     BallSaveOnWizard = ReadSetting(EEPROM_BALL_SAVE_ON_WIZARD, 30, 60);
+    MinimodeRequalifyBehavior = ReadSetting(EEPROM_MINIMODE_REQUALIFY_BEHAVIOR, 0, 2);
   }
 }
 
@@ -1087,14 +1114,14 @@ byte SolenoidConvertDisplayNumberToTestStrength(byte displayNumber) {
     case  1: return TOP_GATE_OPEN_SOLENOID_STRENGTH;
     case  2: return TOP_GATE_CLOSE_SOLENOID_STRENGTH;
     case  3: return LIFT_GATE_SOLENOID_STRENGTH;
-    case  4: return 4;
+    case  4: return SolenoidAssociatedSwitches[3].solenoidHoldTime;
     case  5: return DROP_TARGET_RESET_STRENGTH;
     case  6: return DROP_TARGET_RESET_STRENGTH;
     case  7: return KNOCKER_SOLENOID_STRENGTH;
     case  8: return SaucerSolenoidStrength;
-    case  9: return 4;
-    case 10: return 4;
-    case 11: return 4;
+    case  9: return SolenoidAssociatedSwitches[1].solenoidHoldTime;;
+    case 10: return SolenoidAssociatedSwitches[0].solenoidHoldTime;;
+    case 11: return SolenoidAssociatedSwitches[2].solenoidHoldTime;;
     case 12: return ShooterKickFullStrength;
     case 13: return BallServeSolenoidStrength;
     case 14: return LEFT_GATE_OPEN_SOLENOID_STRENGTH;
@@ -1106,6 +1133,19 @@ byte SolenoidConvertDisplayNumberToTestStrength(byte displayNumber) {
     default: return OPERATOR_MENU_VALUE_OUT_OF_RANGE;
   }
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////
+//
+//  Setup
+//    Arduino calls this function at power up and reset.
+//    It's used to initialize the hardware and 
+//    certain variables and structures used by 
+//    the code.
+//
+////////////////////////////////////////////////////////////////////////////
 
 void setup() {
 
@@ -1130,6 +1170,9 @@ void setup() {
   // For those, you can define an array of solenoids and the switches
   // that will trigger them:
   RPU_SetupGameSwitches(NUM_SWITCHES_WITH_TRIGGERS, NUM_PRIORITY_SWITCHES_WITH_TRIGGERS, SolenoidAssociatedSwitches);
+  
+  TempSlingStrength = SolenoidAssociatedSwitches[0].solenoidHoldTime;
+  TempPopStrength = SolenoidAssociatedSwitches[3].solenoidHoldTime;
 #endif
 
   // Set up the chips and interrupts
@@ -1206,7 +1249,9 @@ void setup() {
   RPU_SetSwitchInversion(SW_DROP_R_2);
   RPU_SetSwitchInversion(SW_DROP_R_3);
 
-  Audio.QueueSound(SOUND_EFFECT_STARTUP_1 + CurrentTime % 2, AUDIO_PLAY_TYPE_WAV_TRIGGER, CurrentTime + 1200);
+  CurrentTime = millis();
+
+  Audio.QueueSound(SOUND_EFFECT_STARTUP_1 + (micros()) % 2, AUDIO_PLAY_TYPE_WAV_TRIGGER, CurrentTime + 1200);
   MachineLocks = 0;
   LiftGateLastReleaseTime = 0;
   LiftGateReleaseRequestTime = 0;
@@ -1240,6 +1285,15 @@ byte CheckSequentialSwitches(byte startingSwitch, byte numSwitches) {
 ////////////////////////////////////////////////////////////////////////////
 //
 //  Lamp Management functions
+//    These functions are called each time through the gameplay loop.
+//    They use the current status variables to set each lamp to 
+//    on, off, dim (depending on hardware), or flashing. The lamps are
+//    actually set in hardware by the Interrupt Service Routine, so
+//    these functions simply update the state arrays used by the ISR.
+//
+//    If a special animation is required (sweeps and such), then these
+//    functions are turned off and one of the special functions in
+//    "LampAnimations.h" is used to set those lamps.
 //
 ////////////////////////////////////////////////////////////////////////////
 void SetGeneralIlluminationOn(boolean setGIOn = true) {
@@ -1261,7 +1315,7 @@ void ShowPlayerLamps() {
 byte BonusLampAssignments[6] = {LAMP_BONUS_1, LAMP_BONUS_2, LAMP_BONUS_3, LAMP_BONUS_4, LAMP_BONUS_5, LAMP_BONUS_6};
 
 void ShowBonusLamps() {
-  boolean lampShown[6] = {false};
+
   if (CurrentStatusReportPage==1 && CurrentTime < (LastSwitchHitTime + ((unsigned long)StatusModeInactivityDelay*1000) + 3000)) {
     byte lampPhase = ((CurrentTime - (LastSwitchHitTime + ((unsigned long)StatusModeInactivityDelay*1000)))/75) % 13;
     if (lampPhase>6) lampPhase = 12-lampPhase;
@@ -1269,6 +1323,15 @@ void ShowBonusLamps() {
       RPU_SetLampState(BonusLampAssignments[count], count==lampPhase);
     }
     RPU_SetLampState(LAMP_SPECIAL, (lampPhase==6)?true:false);
+
+  } else if (GameMode == GAME_MODE_FULL_WIZARD) {
+    RPU_SetLampState(LAMP_BONUS_1, 0);
+    RPU_SetLampState(LAMP_BONUS_2, 0);
+    RPU_SetLampState(LAMP_BONUS_3, 0);
+    RPU_SetLampState(LAMP_BONUS_4, 0);
+    RPU_SetLampState(LAMP_BONUS_5, 0);
+    RPU_SetLampState(LAMP_BONUS_6, 0);
+    RPU_SetLampState(LAMP_SPECIAL, 0);
   } else if (GameMode == GAME_MODE_SKILL_SHOT) {
     RPU_SetLampState(LAMP_BONUS_1, 0);
     RPU_SetLampState(LAMP_BONUS_2, 0);
@@ -1288,45 +1351,17 @@ void ShowBonusLamps() {
     RPU_SetLampState(LAMP_SPECIAL, lampPhase == 6);
   } else {
     RPU_SetLampState(LAMP_SPECIAL, SpecialAvailable, 0, 100);
-    byte bonusToShow = Bonus[CurrentPlayer];
+    byte remainderBonus = Bonus[CurrentPlayer]%4;
+    byte solidBonus = (Bonus[CurrentPlayer]/4);
+    int flashSpeed = 0;
+    if (remainderBonus==1) flashSpeed = 750;
+    else if (remainderBonus==2) flashSpeed = 500;
+    else if (remainderBonus==3) flashSpeed = 250;
 
-    if (bonusToShow > 6) {
-      RPU_SetLampState(LAMP_BONUS_6, 1, 0, 150);
-      lampShown[5] = true;
-      bonusToShow -= 6;
-      if (bonusToShow > 5) {
-        RPU_SetLampState(LAMP_BONUS_5, 1, 0, 150);
-        lampShown[4] = true;
-        bonusToShow -= 5;
-        if (bonusToShow > 4) {
-          RPU_SetLampState(LAMP_BONUS_4, 1, 0, 150);
-          lampShown[3] = true;
-          bonusToShow -= 4;
-          if (bonusToShow > 3) {
-            RPU_SetLampState(LAMP_BONUS_3, 1, 0, 150);
-            lampShown[2] = true;
-            bonusToShow -= 3;
-            if (bonusToShow > 2) {
-              RPU_SetLampState(LAMP_BONUS_2, 1, 1, 150);
-              lampShown[1] = true;
-              bonusToShow -= 2;
-            }
-          }
-        }
-      }
-    }
-
-    if (bonusToShow) {
-      for (byte count = 1; count < 7; count++) {
-        if (bonusToShow >= count) {
-          RPU_SetLampState(BonusLampAssignments[count - 1], 1);
-          lampShown[count - 1] = true;
-        }
-      }
-    }
-
-    for (byte count = 0; count < 6; count++) {
-      if (!lampShown[count]) RPU_SetLampState(BonusLampAssignments[count], 0);
+    for (byte count=0; count<6; count++) {
+      if (solidBonus>count) RPU_SetLampState(BonusLampAssignments[count], 1);
+      else if (solidBonus==count && flashSpeed) RPU_SetLampState(BonusLampAssignments[count], 1, 0, flashSpeed);
+      else RPU_SetLampState(BonusLampAssignments[count], 0);
     }
 
   }
@@ -1345,6 +1380,13 @@ void ShowPopBumperAndSlingLamps() {
     lampPhase = (CurrentTime / 187) % 8;
     RPU_SetLampState(LAMP_LEFT_SLING, lampPhase < 2 || lampPhase == 4 || lampPhase == 6);
     RPU_SetLampState(LAMP_RIGHT_SLING, lampPhase == 2 || lampPhase == 3 || lampPhase == 5 || lampPhase == 7);
+  } else if (GameMode == GAME_MODE_FULL_WIZARD) {
+    byte lampPhase = (CurrentTime / 50) % 3;
+    RPU_SetLampState(LAMP_POP_WHITE_DOWN, lampPhase==0);
+    RPU_SetLampState(LAMP_POP_SMALL_BLUE, lampPhase==1);
+    RPU_SetLampState(LAMP_POP_BLUE_UP, lampPhase==2);
+    RPU_SetLampState(LAMP_LEFT_SLING, lampPhase);
+    RPU_SetLampState(LAMP_RIGHT_SLING, lampPhase<2);
   } else {
     RPU_SetLampState(LAMP_POP_WHITE_DOWN, 1);
     if (LastTimePopHit) {
@@ -1371,7 +1413,7 @@ void ShowStandupTargetLamps() {
       jakeFlag *= 2;
     }
   } else if ( GameMode == GAME_MODE_MINI_WIZARD ) {
-    unsigned long jakeFlag = WIZARD_SHOT_J;
+    unsigned long jakeFlag = MINI_WIZARD_SHOT_J;
     for (byte count=0; count<4; count++) {
       if (WizardShotsCompleted & jakeFlag) {
         RPU_SetLampState(JakeLampAssignments[count], 1);
@@ -1381,6 +1423,18 @@ void ShowStandupTargetLamps() {
         else RPU_SetLampState(JakeLampAssignments[count], 0);
       }
       jakeFlag *= 2;
+    }
+  } else if ( GameMode == GAME_MODE_FULL_WIZARD ) {
+    if (CurrentWizardShot==WIZARD_SHOT_JAKE) {
+      byte jakeFlag = 0x01;
+      for (byte count = 0; count < 4; count++) {
+        RPU_SetLampState(JakeLampAssignments[count], (JakeStatus[CurrentPlayer] & jakeFlag) ? true : false, 0, 100);
+        jakeFlag *= 2;
+      }
+    } else {
+      for (byte count = 0; count < 4; count++) {
+        RPU_SetLampState(JakeLampAssignments[count], 0);
+      }
     }
   } else if ((MiniModesRunning&JAKE_MINIMODE_FLAG)) {
     for (byte count = 0; count < 4; count++) {
@@ -1403,6 +1457,13 @@ void ShowLoopSpinnerAndLockLamps() {
     RPU_SetLampState(LAMP_CAPTIVE_BALL, 1, 0, 25);
     RPU_SetLampState(LAMP_BEHIND_CAPTIVE, 1, 0, 25);
     RPU_SetLampState(LAMP_LOOP_BONUS, 1, 0, 25);
+    RPU_SetLampState(LAMP_SAUCER, 0);
+  } else if ( GameMode == GAME_MODE_FULL_WIZARD ) {
+    RPU_SetLampState(LAMP_LEFT_SPINNER, CurrentWizardShot==WIZARD_SHOT_SPINNER, 0, 100);
+    RPU_SetLampState(LAMP_HIDE_AWAY, 0);
+    RPU_SetLampState(LAMP_CAPTIVE_BALL, 0);
+    RPU_SetLampState(LAMP_BEHIND_CAPTIVE, 0);
+    RPU_SetLampState(LAMP_LOOP_BONUS, CurrentWizardShot==WIZARD_SHOT_FLIP, 0, 100);
     RPU_SetLampState(LAMP_SAUCER, 0);
   } else if (GameMode == GAME_MODE_MULTIBALL_3) {
     if ((MiniModesRunning&BAND_MINIMODE_FLAG)) {
@@ -1439,14 +1500,14 @@ void ShowLoopSpinnerAndLockLamps() {
   } else if (GameMode==GAME_MODE_MINI_WIZARD) {
     boolean phase2;
     phase2 = (((CurrentTime / 25) % 12)==6) ? true : false; 
-    if (WizardShotsCompleted & WIZARD_SHOT_SPINNER) RPU_SetLampState(LAMP_LEFT_SPINNER, 1);
+    if (WizardShotsCompleted & MINI_WIZARD_SHOT_SPINNER) RPU_SetLampState(LAMP_LEFT_SPINNER, 1);
     else RPU_SetLampState(LAMP_LEFT_SPINNER, phase2);
     RPU_SetLampState(LAMP_HIDE_AWAY, 0);
-    if (WizardShotsCompleted & WIZARD_SHOT_SAUCER) RPU_SetLampState(LAMP_SAUCER, 1);
+    if (WizardShotsCompleted & MINI_WIZARD_SHOT_SAUCER) RPU_SetLampState(LAMP_SAUCER, 1);
     else RPU_SetLampState(LAMP_SAUCER, phase2);
     RPU_SetLampState(LAMP_CAPTIVE_BALL, 0);
     RPU_SetLampState(LAMP_BEHIND_CAPTIVE, 0);
-    if (WizardShotsCompleted & WIZARD_SHOT_RIGHT_FLIP) RPU_SetLampState(LAMP_LOOP_BONUS, 1);
+    if (WizardShotsCompleted & MINI_WIZARD_SHOT_RIGHT_FLIP) RPU_SetLampState(LAMP_LOOP_BONUS, 1);
     else RPU_SetLampState(LAMP_LOOP_BONUS, phase2);
   } else {
     RPU_SetLampState(LAMP_LEFT_SPINNER, LeftSpinnerLitTime ? true : false, 0, 150);
@@ -1494,7 +1555,14 @@ void ShowDropTargetLamps() {
       RPU_SetLampState(ElwoodLampAssignments[count], (ElwoodStatus[CurrentPlayer] & elwoodFlag) ? false : true, 0, 25);
       elwoodFlag *= 2;
     }
-  } else if (GameMode == GAME_MODE_SKILL_SHOT) {
+  } else if ( GameMode == GAME_MODE_FULL_WIZARD ) {
+    byte elwoodFlag = 0x01;
+    for (byte count = 0; count < 3; count++) {
+      RPU_SetLampState(ElwoodLampAssignments[count], ((ElwoodStatus[CurrentPlayer] & elwoodFlag) ? false : true) && CurrentWizardShot==WIZARD_SHOT_LEFT_BANK, 0, 100);
+      RPU_SetLampState(ElwoodLampAssignments[count+3], ((ElwoodStatus[CurrentPlayer] & (elwoodFlag*8)) ? false : true) && CurrentWizardShot==WIZARD_SHOT_RIGHT_BANK, 0, 100);
+      elwoodFlag *= 2;
+    }
+  } else if ( GameMode == GAME_MODE_SKILL_SHOT ) {
     byte elwoodFlag = 0x01;
     for (byte count = 0; count < 6; count++) {
       RPU_SetLampState(ElwoodLampAssignments[count], count == SkillshotLetter, 0, 75);
@@ -1505,7 +1573,7 @@ void ShowDropTargetLamps() {
       RPU_SetLampState(ElwoodLampAssignments[count], count == ElwoodTargetLit, 0, 25);
     }
   } else if ( GameMode == GAME_MODE_MINI_WIZARD ) {
-    unsigned long elwoodFlag = WIZARD_SHOT_E1;
+    unsigned long elwoodFlag = MINI_WIZARD_SHOT_E1;
     for (byte count=0; count<3; count++) {
       if (WizardShotsCompleted & elwoodFlag) {
         RPU_SetLampState(ElwoodLampAssignments[count], 1);
@@ -1516,7 +1584,7 @@ void ShowDropTargetLamps() {
       }
       elwoodFlag *= 2;
     }
-    elwoodFlag = WIZARD_SHOT_O1; // move past flag for spinner
+    elwoodFlag = MINI_WIZARD_SHOT_O1; // move past flag for spinner
     for (byte count=0; count<3; count++) {
       if (WizardShotsCompleted & elwoodFlag) {
         RPU_SetLampState(ElwoodLampAssignments[count+3], 1);
@@ -1559,21 +1627,30 @@ void ShowDropTargetLamps() {
 
 void ShowLaneLamps() {
   if (GameMode == GAME_MODE_MINI_WIZARD) {
-    if (WizardShotsCompleted & WIZARD_SHOT_SAVE_GATE) {
+    if (WizardShotsCompleted & MINI_WIZARD_SHOT_SAVE_GATE) {
       RPU_SetLampState(LAMP_OPEN_SAVE_GATE, 1);
     } else {
       byte availPhase = (CurrentTime / 25) % 12;
       RPU_SetLampState(LAMP_OPEN_SAVE_GATE, (availPhase==0)?true:false);
     }
+    RPU_SetLampState(LAMP_LEFT_INLANE, 0);
+    RPU_SetLampState(LAMP_RIGHT_INLANE, 0);
+  } else if ( GameMode == GAME_MODE_FULL_WIZARD ) {  
+    RPU_SetLampState(LAMP_OPEN_SAVE_GATE, 0);
+    RPU_SetLampState(LAMP_LEFT_INLANE, 0);
+    RPU_SetLampState(LAMP_RIGHT_INLANE, 0);
   } else {
     if (LeftGateAvailableTime && CurrentTime > LeftGateAvailableTime) {
       RPU_SetLampState(LAMP_OPEN_SAVE_GATE, 1, 0, 800);
     } else {
       RPU_SetLampState(LAMP_OPEN_SAVE_GATE, 0);
     }
+
+    if (BuildBonusLampsCompletionTime) RPU_SetLampState(LAMP_LEFT_INLANE, 1, 50);
+    else RPU_SetLampState(LAMP_LEFT_INLANE, (BuildBonusLamps[CurrentPlayer] & BUILD_BONUS_LAMP_LEFT_INLANE)?true:false);
+    if (BuildBonusLampsCompletionTime) RPU_SetLampState(LAMP_RIGHT_INLANE, 1, 50);
+    else RPU_SetLampState(LAMP_RIGHT_INLANE, (BuildBonusLamps[CurrentPlayer] & BUILD_BONUS_LAMP_RIGHT_INLANE)?true:false);
   }
-  if (BuildBonusLampsCompletionTime) RPU_SetLampState(LAMP_LEFT_INLANE, 1, 50);
-  else RPU_SetLampState(LAMP_LEFT_INLANE, (BuildBonusLamps[CurrentPlayer] & BUILD_BONUS_LAMP_LEFT_INLANE)?true:false);
 
   if (LeftGateCloseTime) {
     unsigned short flashRate = 0;
@@ -1586,8 +1663,6 @@ void ShowLaneLamps() {
   } else {
     RPU_SetLampState(LAMP_LEFT_OUTLANE, 0);
   }
-  if (BuildBonusLampsCompletionTime) RPU_SetLampState(LAMP_RIGHT_INLANE, 1, 50);
-  else RPU_SetLampState(LAMP_RIGHT_INLANE, (BuildBonusLamps[CurrentPlayer] & BUILD_BONUS_LAMP_RIGHT_INLANE)?true:false);
   RPU_SetLampState(LAMP_RIGHT_OUTLANE_EB, ExtraBallAvailable[CurrentPlayer]==1, 0, 100);
 }
 
@@ -1602,6 +1677,7 @@ void ShowShootAgainLamp() {
     RPU_SetLampState(LAMP_SHOOT_AGAIN, SamePlayerShootsAgain);
   }
 }
+
 
 
 void ActivateTopper(boolean longDisplay = false) {
@@ -1866,11 +1942,17 @@ void UpdateLiftGate() {
 }
 
 
+////////////////////////////////////////////////////////////////////////////
+//
+//  Operator Menu
+//
+////////////////////////////////////////////////////////////////////////////
 
-#define SOUND_EFFECT_OM_CPC_VALUES              180
-#define SOUND_EFFECT_OM_CRB_VALUES              210
-#define SOUND_EFFECT_OM_DIFFICULTY_VALUES       220
-#define SOUND_EFFECT_OM_LOCK_BEHAVIOR_VALUES    230
+#define SOUND_EFFECT_OM_CPC_VALUES                  180
+#define SOUND_EFFECT_OM_CRB_VALUES                  210
+#define SOUND_EFFECT_OM_DIFFICULTY_VALUES           220
+#define SOUND_EFFECT_OM_LOCK_BEHAVIOR_VALUES        230
+#define SOUND_EFFECT_OM_MINIMODE_REQUALIFY_VALUES   240
 
 #define SOUND_EFFECT_AP_TOP_LEVEL_MENU_ENTRY    1700
 #define SOUND_EFFECT_AP_TEST_MENU               1701
@@ -1983,7 +2065,8 @@ void UpdateLiftGate() {
 #define OM_GAME_ADJ_SAUCER_EJECT_STRENGTH           21
 #define OM_GAME_ADJ_SLINGSHOT_STRENGTH              22
 #define OM_GAME_ADJ_POP_BUMPER_STRENGTH             23
-#define OM_GAME_ADJ_FINISHED                        24
+#define OM_GAME_ADJ_MINIMODE_REQUALIFY_BEHAVIOR     24
+#define OM_GAME_ADJ_FINISHED                        25
 #define SOUND_EFFECT_AP_LOCK_BEHAVIOR               (1800 + OM_GAME_ADJ_LOCK_BEHAVIOR)
 
 unsigned long SoundSettingTimeout;
@@ -2455,17 +2538,23 @@ void RunOperatorMenu() {
           adjustmentType = OPERATOR_MENU_ADJ_TYPE_MIN_MAX;
           adjustmentValues[0] = 4;
           adjustmentValues[1] = 8;
-          currentAdjustmentByte = &SolenoidAssociatedSwitches[0].solenoidHoldTime;
+          currentAdjustmentByte = &TempSlingStrength;
           currentAdjustmentStorageByte = EEPROM_SLINGSHOT_STRENGTH;
           break;
         case OM_GAME_ADJ_POP_BUMPER_STRENGTH:
           adjustmentType = OPERATOR_MENU_ADJ_TYPE_MIN_MAX;
           adjustmentValues[0] = 4;
           adjustmentValues[1] = 8;
-          currentAdjustmentByte = &SolenoidAssociatedSwitches[3].solenoidHoldTime;
+          currentAdjustmentByte = &TempPopStrength;
           currentAdjustmentStorageByte = EEPROM_POP_BUMPER_STRENGTH;
           break;
-
+        case OM_GAME_ADJ_MINIMODE_REQUALIFY_BEHAVIOR:
+          adjustmentType = OPERATOR_MENU_ADJ_TYPE_MIN_MAX;
+          adjustmentValues[1] = 2;
+          currentAdjustmentByte = &MinimodeRequalifyBehavior;
+          currentAdjustmentStorageByte = EEPROM_MINIMODE_REQUALIFY_BEHAVIOR;
+          parameterCallout = SOUND_EFFECT_OM_MINIMODE_REQUALIFY_VALUES;
+          break;
       }
       
       Menus.SetParameterControls(   adjustmentType, numAdjustmentValues, adjustmentValues, parameterCallout,
@@ -2500,6 +2589,16 @@ void RunOperatorMenu() {
         Audio.PlaySound(SOUND_EFFECT_VP_JACKPOT_1, AUDIO_PLAY_TYPE_WAV_TRIGGER, CalloutsVolume);
         Audio.SetNotificationsVolume(CalloutsVolume);
         SoundSettingTimeout = CurrentTime + 3000;        
+      }
+    } else if (Menus.GetTopLevel()==OPERATOR_MENU_GAME_ADJ_MENU) {
+      if (Menus.GetSubLevel()==OM_GAME_ADJ_SLINGSHOT_STRENGTH) {
+        // If the operator changes one slingshot strength,
+        // we have to mirror that to the other slingshots
+        SolenoidAssociatedSwitches[0].solenoidHoldTime = TempSlingStrength;
+        SolenoidAssociatedSwitches[1].solenoidHoldTime = TempSlingStrength;
+        SolenoidAssociatedSwitches[2].solenoidHoldTime = TempSlingStrength;
+      } else if (Menus.GetSubLevel()==OM_GAME_ADJ_POP_BUMPER_STRENGTH) {
+        SolenoidAssociatedSwitches[3].solenoidHoldTime = TempPopStrength;
       }
     }
   }
@@ -2893,6 +2992,11 @@ int RunAttractMode(int curState, boolean curStateChanged) {
   byte switchHit;
   while ( (switchHit = RPU_PullFirstFromSwitchStack()) != SWITCH_STACK_EMPTY ) {
     if (switchHit == SW_CREDIT_RESET) {
+      if (RPU_ReadSingleSwitchState(SW_LEFT_FLIPPER) && RPU_ReadSingleSwitchState(SW_RIGHT_FLIPPER)) {
+        StartGameInWizardMode = true;
+      } else {
+        StartGameInWizardMode = false;
+      }
       if (AddPlayer(true)) returnState = MACHINE_STATE_INIT_GAMEPLAY;
     }
     if (switchHit == SW_COIN_1) {
@@ -3080,10 +3184,17 @@ int InitGamePlay(boolean curStateChanged) {
     LeftOutlaneSaveSeconds[count] = 0;
     RightOutlaneSaveSeconds[count] = 0;
     ExtraBallAvailable[count] = 0;
+    WizardShotOrder[count] = 0;
+    ElwoodClearsRequiredPerPlayer[count] = ElwoodClearsToQualify;
+    JakeClearsRequiredPerPlayer[count] = JakeClearsToQualify;
+    SpinnerHitsRequiredPerPlayer[count] = SpinnerHitsToQualifyBand;
   }
 
   SamePlayerShootsAgain = false;
   CurrentBallInPlay = 1;
+  if (AllowGameToStartWithWizard && StartGameInWizardMode) {
+    CurrentBallInPlay = BallsPerGame;
+  }    
   CurrentNumPlayers = 1;
   CurrentPlayer = 0;
   NumberOfBallsInPlay = 0;
@@ -3096,6 +3207,73 @@ int InitGamePlay(boolean curStateChanged) {
   RPU_PushToSolenoidStack(SOL_TOP_GATE_CLOSE, TOP_GATE_CLOSE_SOLENOID_STRENGTH);
 
   return MACHINE_STATE_INIT_NEW_BALL;
+}
+
+
+byte GetWizardShotByOrder(byte order) {
+  unsigned long nextWizOrder = WizardShotOrder[CurrentPlayer];
+  for (byte count=1; count<7; count++) {
+    if ((nextWizOrder & 0x0007)==order) return count;
+    nextWizOrder /= 8;
+  }
+  return 6;
+}
+
+byte CalculateNextWizardShot() {
+  unsigned long wizardShift = 1;
+  unsigned long currentIndex;
+  unsigned long maxIndex = 0;
+  for (byte count=0; count<7; count++) {
+    currentIndex = (WizardShotOrder[CurrentPlayer]/wizardShift) & 0x0007;
+    if (currentIndex>maxIndex) {
+      maxIndex = currentIndex;
+    }
+    wizardShift *= 8;
+  }
+
+  return (byte)(maxIndex+1);
+}
+
+
+boolean ScoreMiniWizardShot(unsigned long wizShotFlag) {
+  unsigned long lastWizardShots = WizardShotsCompleted;
+  WizardShotsCompleted |= wizShotFlag;
+  if (lastWizardShots != WizardShotsCompleted) {
+    
+    byte numShotsComplete = CountBits(WizardShotsCompleted);
+    if (numShotsComplete<6) {
+      PlaySoundEffect(SOUND_EFFECT_MINI_WIZ_SCORE_1);
+      Display_StartScoreAnimation(10000 * PlayfieldMultiplier, true);
+    } else if (numShotsComplete<11) {
+      PlaySoundEffect(SOUND_EFFECT_MINI_WIZ_SCORE_2);
+      Display_StartScoreAnimation(20000 * PlayfieldMultiplier, true);
+    } else {
+      PlaySoundEffect(SOUND_EFFECT_MINI_WIZ_SCORE_3);
+      Display_StartScoreAnimation(30000 * PlayfieldMultiplier, true);
+    }
+    return true;
+  }
+
+  return false;
+}
+
+
+void SetWizardShotOrder(byte wizardShotIndex) {
+
+  if (GameMode==GAME_MODE_FULL_WIZARD) return;
+
+  unsigned long wizardShotMask = 0x0007;
+  unsigned long wizardShotMultiplier = 1;  
+  for (byte count=0; count<(wizardShotIndex-1); count++) {
+    wizardShotMask *= 8;
+    wizardShotMultiplier *= 8;
+  }
+
+  byte highestWizardShot = CalculateNextWizardShot();
+
+  if ( (WizardShotOrder[CurrentPlayer] & wizardShotMask)==0x0000 ) {
+    WizardShotOrder[CurrentPlayer] += (highestWizardShot * wizardShotMultiplier);
+  }
 }
 
 
@@ -3140,10 +3318,14 @@ int InitNewBall(bool curStateChanged) {
     GameModeStartTime = 0;
     GameModeEndTime = 0;
     GameMode = GAME_MODE_SKILL_SHOT;
+    if (AllowGameToStartWithWizard && StartGameInWizardMode && CurrentBallInPlay==3) {
+      GameMode = GAME_MODE_FULL_WIZARD_READY;
+    }
 
     SpecialCollected = false;
     SpecialAvailable = false;
 
+    PopBumperProgress = 0;
     PlayfieldMultiplier = 1;
     PlayfieldMultiplierTimeLeft = 0;
     BonusXAnimationStart = 0;
@@ -3151,6 +3333,9 @@ int InitNewBall(bool curStateChanged) {
     BonusX[CurrentPlayer] = 1;
     Display_ResetDisplayTrackingVariables();
     BuildBonusLampsCompletionTime = 0;
+    ShotIndicatorRunning = 0;
+    WizardShotLit = 0;
+    LiftGateOpenedDuringBallSearch = false;
 
     SetBallSave(0);
     MiniModesRunning = 0;
@@ -3195,6 +3380,7 @@ int InitNewBall(bool curStateChanged) {
     LastFlipLaneTime = 0;
     LastDropTargetHitTime = 0;
     CollectFlipBonusTimeout = 0;
+    CollectFlipBonusWarningPlayed = 0;
     NextBonusPayoutTime = 0;
     LeftOutlaneSaveEndTime = 0;
     RightOutlaneSaveEndTime = 0;
@@ -3232,6 +3418,10 @@ int InitNewBall(bool curStateChanged) {
     WaitForPurgedLock = false;
     RPU_SetDisableFlippers(false);
     RPU_EnableSolenoidStack();
+    SolenoidAssociatedSwitches[0].solenoidHoldTime = TempSlingStrength;
+    SolenoidAssociatedSwitches[1].solenoidHoldTime = TempSlingStrength;
+    SolenoidAssociatedSwitches[2].solenoidHoldTime = TempSlingStrength;
+    SolenoidAssociatedSwitches[3].solenoidHoldTime = TempPopStrength;
     return MACHINE_STATE_NORMAL_GAMEPLAY;
   } else {
 
@@ -3284,6 +3474,7 @@ void AddToBuildBonus(byte bonusLampsFlag, unsigned long baseScore) {
 
     soundPlayed = true;
     CollectFlipBonusTimeout = CurrentTime + ((unsigned long)BonusCollectHurryUp * 1000);
+    CollectFlipBonusWarningPlayed = 0;
   }
 
   if (!soundPlayed) PlaySoundEffect(SOUND_EFFECT_SHORT_FILL_2);
@@ -3301,12 +3492,14 @@ void CheckSaucerForStuckBall() {
     } else {
       if (CurrentTime > (SaucerClosedStart + 1500)) {
         SaucerClosedStart = 0;
-        if (MiniModesQualified[CurrentPlayer] && GameMode == GAME_MODE_UNSTRUCTURED_PLAY) {
+        if (GameMode==GAME_MODE_FULL_WIZARD_READY) {
+          SetGameMode(GAME_MODE_FULL_WIZARD_START);
+        } else if (MiniModesQualified[CurrentPlayer] && GameMode == GAME_MODE_UNSTRUCTURED_PLAY) {
           SetGameMode(GAME_MODE_MINIMODE_START);
         } else if (GameMode == GAME_MODE_MINI_WIZARD_READY) {
           SetGameMode(GAME_MODE_MINI_WIZARD_START);
         } else if (GameMode == GAME_MODE_MINI_WIZARD) {
-          if (!ScoreWizardShot(WIZARD_SHOT_SAUCER)) {
+          if (!ScoreMiniWizardShot(MINI_WIZARD_SHOT_SAUCER)) {
             PlaySoundEffect(SOUND_EFFECT_RICOCHET_0 + CurrentTime % 8);
           }
           RPU_PushToSolenoidStack(SOL_SAUCER, SaucerSolenoidStrength, true);
@@ -3468,6 +3661,7 @@ byte GameModeStage;
 boolean DisplaysNeedRefreshing = false;
 unsigned long LastTimePromptPlayed = 0;
 unsigned long LastTimeAwardsChecked = 0;
+unsigned long LastTimeJackpotAdjusted = 0;
 unsigned long LastLoopTick = 0;
 
 void ShowPlayerScoreAcrossBothDisplays(byte playerNum) {
@@ -3487,6 +3681,91 @@ void ShowPlayerScoreAcrossBothDisplays(byte playerNum) {
     Display_OverrideScoreDisplay(1, 0, DISPLAY_OVERRIDE_ANIMATION_NONE, 0x30);
   }
 }
+
+
+short CalculateMiniModeShotsRemaining(byte miniModeFlag) {
+  short numberOfShotsRemaining = 0;
+
+  if (miniModeFlag==ELWOOD_MINIMODE_FLAG) {
+    numberOfShotsRemaining = ElwoodClearsRequiredPerPlayer[CurrentPlayer] - (ElwoodCompletions[CurrentPlayer] % ElwoodClearsRequiredPerPlayer[CurrentPlayer]);
+  } else if (miniModeFlag==JAKE_MINIMODE_FLAG) {
+    numberOfShotsRemaining = JakeClearsRequiredPerPlayer[CurrentPlayer] - (JakeCompletions[CurrentPlayer] % JakeClearsRequiredPerPlayer[CurrentPlayer]);
+  } else if (miniModeFlag==BAND_MINIMODE_FLAG) {    
+    if (SpinnerProgress[CurrentPlayer] < SpinnerHitsRequiredPerPlayer[CurrentPlayer]) {
+      numberOfShotsRemaining = SpinnerHitsRequiredPerPlayer[CurrentPlayer] - SpinnerProgress[CurrentPlayer];
+    }
+  }
+
+  return numberOfShotsRemaining;
+}
+
+
+void QualifyMiniModeWhenReady(byte miniModeFlag) {
+
+  // Check to see if qualify level has been reached
+  if (miniModeFlag==ELWOOD_MINIMODE_FLAG) {
+    if ((ElwoodCompletions[CurrentPlayer] % ElwoodClearsRequiredPerPlayer[CurrentPlayer]) != 0) {
+      // This mode isn't ready
+      return;
+    }
+    if (MinimodeRequalifyBehavior==MINIMODE_REQUALIFY_MUST_FINISH_MINIWIZARD && ElwoodShotsMade[CurrentPlayer]) {
+      // This mode can't be requalified until
+      // Miniwizard clears shots made
+      return;
+    }
+  } else if (miniModeFlag==JAKE_MINIMODE_FLAG) {
+    if ((JakeCompletions[CurrentPlayer] % JakeClearsRequiredPerPlayer[CurrentPlayer]) != 0) {
+      // This mode isn't ready
+      return;
+    }
+    if (MinimodeRequalifyBehavior==MINIMODE_REQUALIFY_MUST_FINISH_MINIWIZARD && JakeShotsMade[CurrentPlayer]) {
+      // This mode can't be requalified until
+      // Miniwizard clears shots made
+      return;
+    }
+  } else if (miniModeFlag==BAND_MINIMODE_FLAG) {
+    if (SpinnerProgress[CurrentPlayer]<SpinnerHitsRequiredPerPlayer[CurrentPlayer]) {
+      // This mode isn't ready
+      return;
+    }
+    if (MinimodeRequalifyBehavior==MINIMODE_REQUALIFY_MUST_FINISH_MINIWIZARD && BandShotsMade[CurrentPlayer]) {
+      // This mode can't be requalified until
+      // Miniwizard clears shots made
+      return;
+    }
+  }
+
+  // A minimode can only be qualified during unstructured play or one of the lock sequences
+  if (GameMode!=GAME_MODE_UNSTRUCTURED_PLAY && GameMode!=GAME_MODE_LOCK_BALL_1 && GameMode!=GAME_MODE_LOCK_BALL_2) return;  
+
+  if ( (MiniModesQualified[CurrentPlayer]&miniModeFlag) == 0) {
+    MiniModesQualified[CurrentPlayer] |= miniModeFlag;
+    if (miniModeFlag == ELWOOD_MINIMODE_FLAG) QueueNotification(SOUND_EFFECT_VP_ELWOOD_MINIMODE_QUALIFIED, 8);
+    else if (miniModeFlag == JAKE_MINIMODE_FLAG) QueueNotification(SOUND_EFFECT_VP_JAKE_MINIMODE_QUALIFIED, 8);
+    else if (miniModeFlag == BAND_MINIMODE_FLAG) {
+      SetWizardShotOrder(WIZARD_SHOT_SPINNER);
+      QueueNotification(SOUND_EFFECT_VP_BAND_MINIMODE_QUALIFIED, 8);
+    }
+
+    if (MiniModeMultiplierExpiration == 0) {
+      MiniModeMultiplierExpiration = CurrentTime + 30000;
+    } else {
+      MiniModeMultiplierExpiration += 15000;
+    }
+
+    // Now that the mode is qualified, 
+    // see if we need to change the update the
+    // qualification
+    if (MinimodeRequalifyBehavior==MINIMODE_REQUALIFY_DOUBLE_DIFFICULTY) {
+      if (miniModeFlag==ELWOOD_MINIMODE_FLAG) ElwoodClearsRequiredPerPlayer[CurrentPlayer] = ElwoodClearsToQualify * 2;
+      if (miniModeFlag==JAKE_MINIMODE_FLAG) JakeClearsRequiredPerPlayer[CurrentPlayer] = JakeClearsToQualify * 2;
+      if (miniModeFlag==BAND_MINIMODE_FLAG) SpinnerHitsRequiredPerPlayer[CurrentPlayer] = SpinnerHitsToQualifyBand * 2;
+    }
+  }
+}
+
+
+
 
 
 // This function manages all timers, flags, and lights
@@ -3570,11 +3849,19 @@ int ManageGameMode() {
 
     if (solToFire!=BallSearchLastSolenoidFired) {
       BallSearchLastSolenoidFired = solToFire;
-      RPU_PushToSolenoidStack(BallSearchSolenoid[BallSearchLastSolenoidFired], BallSearchSolenoidStrength[BallSearchLastSolenoidFired], true);
       if (BallSearchSolenoid[BallSearchLastSolenoidFired]==SOL_LIFT_GATE) {
         if (MachineLocks) {
           UpdateLockStatus(true);
         }
+        if (!LiftGateOpenedDuringBallSearch) {
+          RPU_PushToSolenoidStack(BallSearchSolenoid[BallSearchLastSolenoidFired], BallSearchSolenoidStrength[BallSearchLastSolenoidFired], true);
+          LiftGateOpenedDuringBallSearch = true;
+        }
+      } else {
+        RPU_PushToSolenoidStack(BallSearchSolenoid[BallSearchLastSolenoidFired], BallSearchSolenoidStrength[BallSearchLastSolenoidFired], true);
+      }
+      if (BallSearchSolenoid[BallSearchLastSolenoidFired]==SOL_LEFT_GATE_CLOSE) {
+        LeftGateCloseTime = 0;
       }
       if (DEBUG_MESSAGES) {
         char buf[128];
@@ -3681,15 +3968,16 @@ int ManageGameMode() {
             } else if (MiniModesRunning & ELWOOD_MINIMODE_FLAG) {
               QueueNotification(SOUND_EFFECT_VP_ELWOOD_MODE_RUNNING, 1);
               for (count=0; count<RPU_NUMBER_OF_PLAYER_DISPLAYS; count++) Display_OverrideScoreDisplay(count, 0, DISPLAY_OVERRIDE_ANIMATION_CENTER, 0x00);
-            } else {
+            } else {              
+              byte clearsToQualify = CalculateMiniModeShotsRemaining(ELWOOD_MINIMODE_FLAG);
               QueueNotification(SOUND_EFFECT_VP_FINISH_ELWOOD, 1);
-              if (((ElwoodCompletions[CurrentPlayer]+1) % ElwoodClearsToQualify)==4) QueueNotification(SOUND_EFFECT_VP_FIVE_MORE_TIMES, 1);
-              if (((ElwoodCompletions[CurrentPlayer]+1) % ElwoodClearsToQualify)==3) QueueNotification(SOUND_EFFECT_VP_FOUR_MORE_TIMES, 1);
-              if (((ElwoodCompletions[CurrentPlayer]+1) % ElwoodClearsToQualify)==2) QueueNotification(SOUND_EFFECT_VP_THREE_MORE_TIMES, 1);
-              if (((ElwoodCompletions[CurrentPlayer]+1) % ElwoodClearsToQualify)==1) QueueNotification(SOUND_EFFECT_VP_TWICE_MORE, 1);
-              if (((ElwoodCompletions[CurrentPlayer]+1) % ElwoodClearsToQualify)==0) QueueNotification(SOUND_EFFECT_VP_ONCE_MORE, 1);
+              if (clearsToQualify==1) QueueNotification(SOUND_EFFECT_VP_ONCE_MORE, 1);
+              else if (clearsToQualify==2) QueueNotification(SOUND_EFFECT_VP_TWICE_MORE, 1);
+              else if (clearsToQualify==3) QueueNotification(SOUND_EFFECT_VP_THREE_MORE_TIMES, 1);
+              else if (clearsToQualify==4) QueueNotification(SOUND_EFFECT_VP_FOUR_MORE_TIMES, 1);
+              else if (clearsToQualify==5) QueueNotification(SOUND_EFFECT_VP_FIVE_MORE_TIMES, 1);
               QueueNotification(SOUND_EFFECT_VP_TO_QUALIFY_MODE, 1);
-              for (count=0; count<RPU_NUMBER_OF_PLAYER_DISPLAYS; count++) Display_OverrideScoreDisplay(count, ((ElwoodCompletions[CurrentPlayer]+1) % ElwoodClearsToQualify)+1, DISPLAY_OVERRIDE_ANIMATION_CENTER);
+              for (count=0; count<RPU_NUMBER_OF_PLAYER_DISPLAYS; count++) Display_OverrideScoreDisplay(count, clearsToQualify, DISPLAY_OVERRIDE_ANIMATION_CENTER);
             }
             break;
           case 8:
@@ -3709,14 +3997,15 @@ int ManageGameMode() {
               QueueNotification(SOUND_EFFECT_VP_JAKE_MODE_RUNNING, 1);
               for (count=0; count<RPU_NUMBER_OF_PLAYER_DISPLAYS; count++) Display_OverrideScoreDisplay(count, 0, DISPLAY_OVERRIDE_ANIMATION_CENTER, 0x00);
             } else {
+              byte clearsToQualify = CalculateMiniModeShotsRemaining(JAKE_MINIMODE_FLAG);
               QueueNotification(SOUND_EFFECT_VP_FINISH_JAKE, 1);
-              if (((JakeCompletions[CurrentPlayer]+1) % JakeClearsToQualify)==4) QueueNotification(SOUND_EFFECT_VP_FIVE_MORE_TIMES, 1);
-              if (((JakeCompletions[CurrentPlayer]+1) % JakeClearsToQualify)==3) QueueNotification(SOUND_EFFECT_VP_FOUR_MORE_TIMES, 1);
-              if (((JakeCompletions[CurrentPlayer]+1) % JakeClearsToQualify)==2) QueueNotification(SOUND_EFFECT_VP_THREE_MORE_TIMES, 1);
-              if (((JakeCompletions[CurrentPlayer]+1) % JakeClearsToQualify)==1) QueueNotification(SOUND_EFFECT_VP_TWICE_MORE, 1);
-              if (((JakeCompletions[CurrentPlayer]+1) % JakeClearsToQualify)==0) QueueNotification(SOUND_EFFECT_VP_ONCE_MORE, 1);
+              if (clearsToQualify==1) QueueNotification(SOUND_EFFECT_VP_ONCE_MORE, 1);
+              else if (clearsToQualify==2) QueueNotification(SOUND_EFFECT_VP_TWICE_MORE, 1);
+              else if (clearsToQualify==3) QueueNotification(SOUND_EFFECT_VP_THREE_MORE_TIMES, 1);
+              else if (clearsToQualify==4) QueueNotification(SOUND_EFFECT_VP_FOUR_MORE_TIMES, 1);
+              else if (clearsToQualify==5) QueueNotification(SOUND_EFFECT_VP_FIVE_MORE_TIMES, 1);
               QueueNotification(SOUND_EFFECT_VP_TO_QUALIFY_MODE, 1);
-              for (count=0; count<RPU_NUMBER_OF_PLAYER_DISPLAYS; count++) Display_OverrideScoreDisplay(count, ((JakeCompletions[CurrentPlayer]+1) % JakeClearsToQualify)+1, DISPLAY_OVERRIDE_ANIMATION_CENTER);
+              for (count=0; count<RPU_NUMBER_OF_PLAYER_DISPLAYS; count++) Display_OverrideScoreDisplay(count, clearsToQualify, DISPLAY_OVERRIDE_ANIMATION_CENTER);
             }
             break;
           case 9:
@@ -3736,7 +4025,7 @@ int ManageGameMode() {
             } else {
               QueueNotification(SOUND_EFFECT_VP_SPINS_NEEDED, 1);
               QueueNotification(SOUND_EFFECT_VP_TO_QUALIFY_MODE, 1);
-              spinnerHitsRemaining = SpinnerHitsToQualifyBand - SpinnerProgress[CurrentPlayer];
+              spinnerHitsRemaining = CalculateMiniModeShotsRemaining(BAND_MINIMODE_FLAG);
               for (count=0; count<RPU_NUMBER_OF_PLAYER_DISPLAYS; count++) Display_OverrideScoreDisplay(count, spinnerHitsRemaining, DISPLAY_OVERRIDE_ANIMATION_CENTER);
             }
             break;
@@ -3884,11 +4173,26 @@ int ManageGameMode() {
           Display_ClearOverride(0xFF);
         }
 
-        byte animationStep = ((CurrentTime / 20) % LAMP_ANIMATION_STEPS);
-        byte lampShowPhase = ((CurrentTime / (20*LAMP_ANIMATION_STEPS)) % 3); 
-        if (!statusRunning && (lampShowPhase==0)) {
-          ShowLampAnimationSingleStep(3, LAMP_ANIMATION_STEPS - (animationStep + 1));
-          specialAnimationRunning = true;
+        if (!statusRunning) {
+          if (ShotIndicatorRunning) {
+            if (CurrentTime>(ShotIndicatorRunning+900)) {
+              ShotIndicatorRunning = 0;
+            } else {
+              specialAnimationRunning = true;
+              boolean saucerLampOn = false;
+              if (CurrentTime<(ShotIndicatorRunning+150)) saucerLampOn = true;
+              else if (CurrentTime>(ShotIndicatorRunning+280) && CurrentTime<(ShotIndicatorRunning+430)) saucerLampOn = true;
+              else if (CurrentTime>(ShotIndicatorRunning+560) && CurrentTime<(ShotIndicatorRunning+710)) saucerLampOn = true;
+              RPU_SetLampState(LAMP_SAUCER, saucerLampOn);
+            }
+          } else {
+            byte animationStep = ((CurrentTime / 20) % LAMP_ANIMATION_STEPS);
+            byte lampShowPhase = ((CurrentTime / (20*LAMP_ANIMATION_STEPS)) % 3); 
+            if (!statusRunning && (lampShowPhase==0)) {
+              ShowLampAnimationSingleStep(3, LAMP_ANIMATION_STEPS - (animationStep + 1));
+              specialAnimationRunning = true;
+            }
+          }
         }
 
         if (CurrentTime > MiniModeMultiplierExpiration) {
@@ -3906,6 +4210,9 @@ int ManageGameMode() {
             if (GameModeStage == 0) {
               GameModeStage = 1;
               PlaySoundEffect(SOUND_EFFECT_10_SECOND_WARNING);
+              ShotIndicatorRunning = CurrentTime;
+              specialAnimationRunning = true;
+              ShowLampAnimationSingleStep(3, 0);
             }
           }
         }
@@ -3914,8 +4221,8 @@ int ManageGameMode() {
         if (CurrentTime > (LastSpinnerHitTime + 5000)) {
           LastSpinnerHitTime = 0;
         } else {
-          if (SpinnerProgress[CurrentPlayer] && SpinnerProgress[CurrentPlayer] < SpinnerHitsToQualifyBand) {
-            int spinnerHitsRemaining = SpinnerHitsToQualifyBand - SpinnerProgress[CurrentPlayer];
+          if (SpinnerProgress[CurrentPlayer] && SpinnerProgress[CurrentPlayer] < SpinnerHitsRequiredPerPlayer[CurrentPlayer]) {
+            int spinnerHitsRemaining = CalculateMiniModeShotsRemaining(BAND_MINIMODE_FLAG);
             if (!statusRunning) Display_OverrideScoreDisplay(CurrentPlayer%RPU_NUMBER_OF_PLAYER_DISPLAYS, spinnerHitsRemaining, DISPLAY_OVERRIDE_ANIMATION_CENTER);
           }
         }
@@ -3941,7 +4248,24 @@ int ManageGameMode() {
         Display_ClearOverride(0xFF);
       }
 
-      if (LastFlipLaneTime) {
+      // Special lighting effects and cues
+      if (CollectFlipBonusTimeout && (CurrentTime+10000)>CollectFlipBonusTimeout && (CurrentTime+9000)<CollectFlipBonusTimeout) {
+        if (CollectFlipBonusWarningPlayed==0) {
+          PlaySoundEffect(SOUND_EFFECT_THREE_STICK_CLICKS);
+          CollectFlipBonusWarningPlayed = CurrentTime;
+          // This turns off PF lamps
+          ShowLampAnimationSingleStep(2, 0);
+          RPU_SetLampState(LAMP_LOOP_BONUS, 1);
+          specialAnimationRunning = true;
+        } else if (CurrentTime<(CollectFlipBonusWarningPlayed+900)) {
+          boolean flipLampOn = false;
+          if (CurrentTime<(CollectFlipBonusWarningPlayed+150)) flipLampOn = true;
+          else if (CurrentTime>(CollectFlipBonusWarningPlayed+300) && CurrentTime<(CollectFlipBonusWarningPlayed+450)) flipLampOn = true;
+          else if (CurrentTime>(CollectFlipBonusWarningPlayed+600) && CurrentTime<(CollectFlipBonusWarningPlayed+750)) flipLampOn = true;
+          RPU_SetLampState(LAMP_LOOP_BONUS, flipLampOn);          
+          specialAnimationRunning = true;
+        }
+      } else if (LastFlipLaneTime) {
         if (CurrentTime > (LastFlipLaneTime+750)) {
           LastFlipLaneTime = 0;
         } else {
@@ -3950,7 +4274,7 @@ int ManageGameMode() {
           ShowLampAnimationSingleStep(0, radarPhase);
         }
       } else if (LastTimePopHit) {
-        if (CurrentTime < (LastTimePopHit+480)) {
+        if (CurrentTime < (LastTimePopHit+480) && (PopBumperProgress%10)==0) {
           specialAnimationRunning = true;
           byte popOutPhase = ((CurrentTime - LastTimePopHit)/20);
           ShowLampAnimationSingleStep(4, popOutPhase);
@@ -3972,7 +4296,7 @@ int ManageGameMode() {
         // the player has collected shots in each of the three minimodes, so they should play the mini-wizard
         SetGameMode(GAME_MODE_MINI_WIZARD_READY);
       } else if (RawhideJackpotsCollected[CurrentPlayer] && ConcertJackpotsCollected[CurrentPlayer]) {
-        SetGameMode(GAME_MODE_FULL_WIZARD_READY);
+        //SetGameMode(GAME_MODE_FULL_WIZARD_READY);
       }
         
 
@@ -4289,18 +4613,22 @@ int ManageGameMode() {
         BandShotsMade[CurrentPlayer] = 0;
         Audio.StopAllMusic();
 
+        ElwoodClearsRequiredPerPlayer[CurrentPlayer] += 1;
+        JakeClearsRequiredPerPlayer[CurrentPlayer] += 1;
+        SpinnerHitsRequiredPerPlayer[CurrentPlayer] += 100;
+        
         LeftDropTargets.ResetDropTargets(CurrentTime + 250, true);
         RightDropTargets.ResetDropTargets(CurrentTime + 750, true);
         ElwoodStatus[CurrentPlayer] = 0;
         GameModeStage = 0;
         LastShooterKickTime = 0;
-        PlayBackgroundSong(SOUND_EFFECT_INTRO_LOOP);
+        PlayBackgroundSong(SOUND_EFFECT_INTRO_LOOP_1);
       }
       SetBallSave(1000);
       // Light show directing the player to start the mini wizard
 
 //      if (Audio.GetBackgroundSong()==BACKGROUND_TRACK_NONE) {
-//        Audio.PlayBackgroundSong(SOUND_EFFECT_INTRO_LOOP, false);
+//        Audio.PlayBackgroundSong(SOUND_EFFECT_INTRO_LOOP_1, false);
 //      }
 
       // if they don't start it with the saucer, it will start on drain with a lower jackpot
@@ -4375,7 +4703,7 @@ int ManageGameMode() {
         SetBallSave((unsigned long)BallSaveOnMiniWizard * 1000);
         NumberOfBallsInPlay = 3;
         MachineLocks = 0;
-        PlayerLocks[CurrentPlayer] = 0;
+        //PlayerLocks[CurrentPlayer] = 0;
         NumberOfBallsLocked = 0;
         WizardShotsCompleted = 0;
         WizardShotsRotateTime = CurrentTime + 3100;
@@ -4404,13 +4732,13 @@ int ManageGameMode() {
         }
         WizardShotsRotateTime = CurrentTime + rotateGap;
         WizardShotsCompleted *= 2;
-        if (WizardShotsCompleted & (WIZARD_SHOT_SAUCER*2)) {
-          WizardShotsCompleted &= WIZARD_SHOTS_COMPLETE;
-          WizardShotsCompleted |= WIZARD_SHOT_E1;
+        if (WizardShotsCompleted & (MINI_WIZARD_SHOT_SAUCER*2)) {
+          WizardShotsCompleted &= MINI_WIZARD_SHOTS_COMPLETE;
+          WizardShotsCompleted |= MINI_WIZARD_SHOT_E1;
         }
       }
 
-      if (WizardShotsCompleted == WIZARD_SHOTS_COMPLETE) {
+      if (WizardShotsCompleted == MINI_WIZARD_SHOTS_COMPLETE) {
         // Player has finished all the wizard shots
         WizardShotsCompleted = 0;
         unsigned short songNum = SOUND_EFFECT_MINI_WIZ_MUSIC_3;
@@ -4478,47 +4806,173 @@ int ManageGameMode() {
     case GAME_MODE_FULL_WIZARD_READY:
       if (GameModeStartTime == 0) {
         GameModeStartTime = CurrentTime;
-        GameModeEndTime = 0;
-        // Announce Mini Wizard
-        QueueNotification(SOUND_EFFECT_VP_FULL_WIZARD_INTRO, 10);
+        GameModeEndTime = 60000;
         JackpotValue = 25000 * (unsigned long)(ConcertJackpotsCollected[CurrentPlayer] + RawhideJackpotsCollected[CurrentPlayer]);
+        if (JackpotValue==0) JackpotValue = 25000;
+        LastTimeJackpotAdjusted = CurrentTime;
+        ConcertJackpotsCollected[CurrentPlayer] = 0;
+        RawhideJackpotsCollected[CurrentPlayer] = 0;
         ElwoodShotsMade[CurrentPlayer] = 0;
         JakeShotsMade[CurrentPlayer] = 0;
         BandShotsMade[CurrentPlayer] = 0;
+        ElwoodStatus[CurrentPlayer] = 0;
         Audio.StopAllMusic();
 
         LeftDropTargets.ResetDropTargets(CurrentTime + 250, true);
         RightDropTargets.ResetDropTargets(CurrentTime + 750, true);
-        ElwoodStatus[CurrentPlayer] = 0;
         GameModeStage = 0;
         LastShooterKickTime = 0;
-        PlayBackgroundSong(SOUND_EFFECT_INTRO_LOOP);
+        PlayBackgroundSong(SOUND_EFFECT_FULL_WIZ_START_SONG);
+        for (byte count = 0; count < RPU_NUMBER_OF_PLAYERS_ALLOWED; count++) {
+          if (count != CurrentPlayer) Display_OverrideScoreDisplay(count, JackpotValue, DISPLAY_OVERRIDE_ANIMATION_FLUTTER);
+        }
       }
       SetBallSave(1000);
-      // Light show directing the player to start the full wizard
 
-      // if they don't start it with the saucer, it will start on drain with a lower jackpot
-      if (RPU_ReadSingleSwitchState(SW_SHOOTER_LANE)) {
+      if (JackpotValue>10000 && CurrentTime>(GameModeStartTime+5000) && CurrentTime>(LastTimeJackpotAdjusted+1000)) {
+        LastTimeJackpotAdjusted = CurrentTime;
+        JackpotValue -= 1000;
+        for (byte count = 0; count < RPU_NUMBER_OF_PLAYERS_ALLOWED; count++) {
+          if (count != CurrentPlayer) Display_OverrideScoreDisplay(count, JackpotValue, DISPLAY_OVERRIDE_ANIMATION_FLUTTER);
+        }
+      }      
+
+      // Light show directing the player to start the full wizard
+      if (CurrentTime > (GameModeStartTime + 5000)) specialAnimationRunning = true;
+      if (CurrentTime > (GameModeStartTime + 15000)) {
+        LightsOutAnimation(5, CurrentTime);
+        if (GameModeStage==5) {
+          SolenoidAssociatedSwitches[1].solenoidHoldTime = 0;
+          PlaySoundEffect(SOUND_EFFECT_BIG_SWITCH_PULLED);
+          GameModeStage = 6;
+        }
+      } else if (CurrentTime > (GameModeStartTime + 13000)) {
+        LightsOutAnimation(4, CurrentTime);
+        if (GameModeStage==4) {
+          SolenoidAssociatedSwitches[0].solenoidHoldTime = 0;
+          PlaySoundEffect(SOUND_EFFECT_BIG_SWITCH_PULLED);
+          GameModeStage = 5;
+        }
+      } else if (CurrentTime > (GameModeStartTime + 11000)) {
+        LightsOutAnimation(3, CurrentTime);
+        if (GameModeStage==3) {
+          PlaySoundEffect(SOUND_EFFECT_BIG_SWITCH_PULLED);
+          GameModeStage = 4;
+        }
+      } else if (CurrentTime > (GameModeStartTime + 9000)) {
+        LightsOutAnimation(2, CurrentTime);
+        if (GameModeStage==2) {
+          TempPopStrength = SolenoidAssociatedSwitches[3].solenoidHoldTime;
+          SolenoidAssociatedSwitches[3].solenoidHoldTime = 0;
+          TempSlingStrength = SolenoidAssociatedSwitches[2].solenoidHoldTime;
+          SolenoidAssociatedSwitches[2].solenoidHoldTime = 0;
+          PlaySoundEffect(SOUND_EFFECT_BIG_SWITCH_PULLED);
+          GameModeStage = 3;
+        }
+      } else if (CurrentTime > (GameModeStartTime + 7000)) {
+        LightsOutAnimation(1, CurrentTime);
+        if (GameModeStage==1) {
+          PlaySoundEffect(SOUND_EFFECT_BIG_SWITCH_PULLED);
+          GameModeStage = 2;
+        }
+      } else if (CurrentTime > (GameModeStartTime + 5000)) {
+        LightsOutAnimation(0, CurrentTime);
+        PlaySoundEffect(SOUND_EFFECT_BIG_SWITCH_PULLED);
         if (GameModeStage==0) {
-          JackpotValue /= 2;
-          QueueNotification(SOUND_EFFECT_VP_MINI_WIZARD_HALF_JACKPOT, 7);
-          GameModeEndTime = CurrentTime + 1800;
+          QueueNotification(SOUND_EFFECT_VP_FULL_WIZARD_INTRO, 10);
           GameModeStage = 1;
         }
+      }
 
-        if (CurrentTime > LastShooterKickTime + 2000) {
-          RPU_PushToTimedSolenoidStack(SOL_SHOOTER_KICK, ShooterKickFullStrength, CurrentTime + 750, true);
-          LastShooterKickTime = CurrentTime;
-          BallLaunched = true;
-        }
-        
+      if (RPU_ReadSingleSwitchState(SW_SHOOTER_LANE)) {
+//        if (GameModeStage==0) {
+//          JackpotValue /= 2;
+//          QueueNotification(SOUND_EFFECT_VP_MINI_WIZARD_HALF_JACKPOT, 7);
+//          GameModeEndTime = CurrentTime + 1800;
+//          GameModeStage = 1;
+//        }
+
+//        if (CurrentTime > LastShooterKickTime + 2000) {
+//          RPU_PushToTimedSolenoidStack(SOL_SHOOTER_KICK, ShooterKickFullStrength, CurrentTime + 750, true);
+//          LastShooterKickTime = CurrentTime;
+//          BallLaunched = true;
+//        }        
       }
 
       if (GameModeEndTime && CurrentTime>GameModeEndTime) {
-        SetGameMode(GAME_MODE_FULL_WIZARD_START);
+        Display_ClearOverride(0xFF);
+        SolenoidAssociatedSwitches[0].solenoidHoldTime = TempSlingStrength;
+        SolenoidAssociatedSwitches[1].solenoidHoldTime = TempSlingStrength;
+        SolenoidAssociatedSwitches[2].solenoidHoldTime = TempSlingStrength;
+        SolenoidAssociatedSwitches[3].solenoidHoldTime = TempPopStrength;
+        Audio.StopAllAudio();
+        PlaySoundEffect(SOUND_EFFECT_MISSED_MODE_SHOT);
+        SetGameMode(GAME_MODE_UNSTRUCTURED_PLAY);
       }      
       break;
+    case GAME_MODE_FULL_WIZARD_START:
+      if (GameModeStartTime == 0) {
+        Display_ClearOverride(0xFF);
+        GameModeStartTime = CurrentTime;
+        GameModeEndTime = CurrentTime + 15000;
+        // Announce Mini Wizard
+        QueueNotification(SOUND_EFFECT_VP_FULL_WIZARD_EXPLANATION, 10);
+
+        GameModeStage = 0;
+        LastShooterKickTime = 0;
+        LeftDropTargets.ResetDropTargets(CurrentTime + 250, true);
+        RightDropTargets.ResetDropTargets(CurrentTime + 750, true);
+      }
+
+      if (RPU_ReadSingleSwitchState(SW_LAUNCH)) {
+        GameModeEndTime = CurrentTime - 1;  
+      }        
+
+      SetBallSave(1000);
+      if (GameModeEndTime && CurrentTime>GameModeEndTime) {
+        SetGameMode(GAME_MODE_FULL_WIZARD);
+      }
+      break;
+    case GAME_MODE_FULL_WIZARD:
+      if (GameModeStartTime == 0) {
+        // hold the ball in saucer until later stage
+        // and then special award for breaking it out?
+//        RPU_PushToSolenoidStack(SOL_SAUCER, SaucerSolenoidStrength, true);
+        GameModeStartTime = CurrentTime;
+        GameModeEndTime = CurrentTime + 15000;
+        Audio.StopAllAudio();
+        PlayBackgroundSong(SOUND_EFFECT_FULL_WIZ_MUSIC_1);
+
+        GameModeStage = 1;
+        CurrentWizardShot = GetWizardShotByOrder(1);
+        JakeStatus[CurrentPlayer] = 0;    
+        ElwoodStatus[CurrentPlayer] = 0;
+        
+        // Make sure all the wizard shots are filled out
+        if (CalculateNextWizardShot()<7) {
+          SetWizardShotOrder(WIZARD_SHOT_JAKE);
+          SetWizardShotOrder(WIZARD_SHOT_SAVE_GATE);
+          SetWizardShotOrder(WIZARD_SHOT_SPINNER);
+          SetWizardShotOrder(WIZARD_SHOT_FLIP);
+          SetWizardShotOrder(WIZARD_SHOT_LEFT_BANK);
+          SetWizardShotOrder(WIZARD_SHOT_RIGHT_BANK);
+        }
+      }
+      SetBallSave(1000);
+
+      if ( (CurrentTime + 10000) > GameModeEndTime ) {
+        for (byte count = 0; count < RPU_NUMBER_OF_PLAYERS_ALLOWED; count++) {
+          if (count != CurrentPlayer && !statusRunning) Display_OverrideScoreDisplay(count, (GameModeEndTime - CurrentTime) / 1000, DISPLAY_OVERRIDE_ANIMATION_CENTER);
+        }
+      }
+
+      specialAnimationRunning = true;
+//      WizardShotAnimation(CurrentWizardShot, CurrentTime);
       
+      if (GameModeEndTime && CurrentTime > GameModeEndTime) {
+        SetGameMode(GAME_MODE_UNSTRUCTURED_PLAY);
+      }
+      break;
   }
 
   if ( !statusRunning && !specialAnimationRunning && NumTiltWarnings <= MaxTiltWarnings ) {
@@ -4635,16 +5089,19 @@ int CountdownBonus(boolean curStateChanged) {
     // Turn off topper (if it's on)
     RPU_SetContinuousSolenoidBit(true, 0x20);
 
+    // Turn off solenoids
+    RPU_DisableSolenoidStack();
+
     if (LeftGateCloseTime) {
       LeftGateCloseTime = 0;
       LeftGateAvailableTime = 0;
-      RPU_PushToSolenoidStack(SOL_LEFT_GATE_CLOSE, LEFT_GATE_CLOSE_SOLENOID_STRENGTH);
+      RPU_PushToSolenoidStack(SOL_LEFT_GATE_CLOSE, LEFT_GATE_CLOSE_SOLENOID_STRENGTH, true);
     }
 
     if (TopGateCloseTime) {
       TopGateCloseTime = 0;
       TopGateAvailableTime = 0;
-      RPU_PushToSolenoidStack(SOL_TOP_GATE_CLOSE, TOP_GATE_CLOSE_SOLENOID_STRENGTH);
+      RPU_PushToSolenoidStack(SOL_TOP_GATE_CLOSE, TOP_GATE_CLOSE_SOLENOID_STRENGTH, true);
     }
 
     if (RPU_ReadSingleSwitchState(SW_SAUCER)) {
@@ -5045,46 +5502,9 @@ int HandleSystemSwitches(int curState, byte switchHit) {
 }
 
 
-void QualifyMiniMode(byte miniModeFlag) {
-  // Can't qualify a minimode while you're in a minimode
-  if (GameMode == GAME_MODE_MINIMODE || GameMode == GAME_MODE_MULTIBALL_3_START || GameMode == GAME_MODE_MULTIBALL_3) return;
-
-  if ( (MiniModesQualified[CurrentPlayer]&miniModeFlag) == 0) {
-    MiniModesQualified[CurrentPlayer] |= miniModeFlag;
-    if (miniModeFlag == ELWOOD_MINIMODE_FLAG) QueueNotification(SOUND_EFFECT_VP_ELWOOD_MINIMODE_QUALIFIED, 8);
-    else if (miniModeFlag == JAKE_MINIMODE_FLAG) QueueNotification(SOUND_EFFECT_VP_JAKE_MINIMODE_QUALIFIED, 8);
-    else if (miniModeFlag == BAND_MINIMODE_FLAG) QueueNotification(SOUND_EFFECT_VP_BAND_MINIMODE_QUALIFIED, 8);
-
-    if (MiniModeMultiplierExpiration == 0) {
-      MiniModeMultiplierExpiration = CurrentTime + 30000;
-    } else {
-      MiniModeMultiplierExpiration += 15000;
-    }
-  }
-}
 
 
-boolean ScoreWizardShot(unsigned long wizShotFlag) {
-  unsigned long lastWizardShots = WizardShotsCompleted;
-  WizardShotsCompleted |= wizShotFlag;
-  if (lastWizardShots != WizardShotsCompleted) {
-    
-    byte numShotsComplete = CountBits(WizardShotsCompleted);
-    if (numShotsComplete<6) {
-      PlaySoundEffect(SOUND_EFFECT_MINI_WIZ_SCORE_1);
-      Display_StartScoreAnimation(10000 * PlayfieldMultiplier, true);
-    } else if (numShotsComplete<11) {
-      PlaySoundEffect(SOUND_EFFECT_MINI_WIZ_SCORE_2);
-      Display_StartScoreAnimation(20000 * PlayfieldMultiplier, true);
-    } else {
-      PlaySoundEffect(SOUND_EFFECT_MINI_WIZ_SCORE_3);
-      Display_StartScoreAnimation(30000 * PlayfieldMultiplier, true);
-    }
-    return true;
-  }
 
-  return false;
-}
 
 
 void HandleLeftDropTarget(byte switchHit) {
@@ -5125,10 +5545,10 @@ void HandleLeftDropTarget(byte switchHit) {
     }
     return;
   } else if (GameMode==GAME_MODE_MINI_WIZARD) {
-    unsigned long wizFlag = WIZARD_SHOT_E1;
-    if (switchHit == SW_DROP_L_2) wizFlag = WIZARD_SHOT_L;
-    if (switchHit == SW_DROP_L_3) wizFlag = WIZARD_SHOT_W;
-    if (!ScoreWizardShot(wizFlag)) {
+    unsigned long wizFlag = MINI_WIZARD_SHOT_E1;
+    if (switchHit == SW_DROP_L_2) wizFlag = MINI_WIZARD_SHOT_L;
+    if (switchHit == SW_DROP_L_3) wizFlag = MINI_WIZARD_SHOT_W;
+    if (!ScoreMiniWizardShot(wizFlag)) {
       PlaySoundEffect(SOUND_EFFECT_RICOCHET_0 + CurrentTime % 8);
       CurrentScores[CurrentPlayer] += PlayfieldMultiplier * numTargetsDown * 100;
     }
@@ -5139,6 +5559,7 @@ void HandleLeftDropTarget(byte switchHit) {
   boolean cleared = LeftDropTargets.CheckIfBankCleared();
   boolean readyToClearBoth = false;
   if (cleared) {
+    SetWizardShotOrder(WIZARD_SHOT_LEFT_BANK);
 
     if (ElwoodCompletions[CurrentPlayer] == 0 && OneBankFirstClear) {
       readyToClearBoth = true;
@@ -5155,9 +5576,8 @@ void HandleLeftDropTarget(byte switchHit) {
       soundPlayed = true;
       scoreAdded = true;
       IncreaseBonusX();
-      if ((ElwoodCompletions[CurrentPlayer] % ElwoodClearsToQualify) == 0) {
-        QualifyMiniMode(ELWOOD_MINIMODE_FLAG);
-      }
+      QualifyMiniModeWhenReady(ELWOOD_MINIMODE_FLAG);
+
       if (GameMode==GAME_MODE_MULTIBALL_3 && MB3SuperJackpotQualified==0) {
         MB3SuperJackpotQualified = 1;
       }
@@ -5224,10 +5644,10 @@ void HandleRightDropTarget(byte switchHit) {
     }
     return;
   } else if (GameMode==GAME_MODE_MINI_WIZARD) {
-    unsigned long wizFlag = WIZARD_SHOT_O1;
-    if (switchHit == SW_DROP_R_2) wizFlag = WIZARD_SHOT_O2;
-    if (switchHit == SW_DROP_R_3) wizFlag = WIZARD_SHOT_D;
-    if (!ScoreWizardShot(wizFlag)) {
+    unsigned long wizFlag = MINI_WIZARD_SHOT_O1;
+    if (switchHit == SW_DROP_R_2) wizFlag = MINI_WIZARD_SHOT_O2;
+    if (switchHit == SW_DROP_R_3) wizFlag = MINI_WIZARD_SHOT_D;
+    if (!ScoreMiniWizardShot(wizFlag)) {
       PlaySoundEffect(SOUND_EFFECT_RICOCHET_0 + CurrentTime % 8);
       CurrentScores[CurrentPlayer] += PlayfieldMultiplier * numTargetsDown * 100;
     }
@@ -5238,6 +5658,7 @@ void HandleRightDropTarget(byte switchHit) {
   boolean cleared = RightDropTargets.CheckIfBankCleared();
   boolean readyToClearBoth = false;
   if (cleared) {
+    SetWizardShotOrder(WIZARD_SHOT_RIGHT_BANK);
 
     if (ElwoodCompletions[CurrentPlayer] == 0 && OneBankFirstClear) {
       readyToClearBoth = true;
@@ -5254,9 +5675,7 @@ void HandleRightDropTarget(byte switchHit) {
       scoreAdded = true;
       soundPlayed = true;
       IncreaseBonusX();
-      if ((ElwoodCompletions[CurrentPlayer] % ElwoodClearsToQualify) == 0) {
-        QualifyMiniMode(ELWOOD_MINIMODE_FLAG);
-      }
+      QualifyMiniModeWhenReady(ELWOOD_MINIMODE_FLAG);
       if (GameMode==GAME_MODE_MULTIBALL_3 && MB3SuperJackpotQualified==0) {
         MB3SuperJackpotQualified = 1;
       }
@@ -5298,13 +5717,13 @@ void HandleJakeStandup(byte switchHit) {
     JakeStatus[CurrentPlayer] = 0x00;
     JakeCompletions[CurrentPlayer] += 1;
 
-    if ((JakeCompletions[CurrentPlayer] % JakeClearsToQualify) == 0) {
-      QualifyMiniMode(JAKE_MINIMODE_FLAG);
-    }
+    QualifyMiniModeWhenReady(JAKE_MINIMODE_FLAG);
 
     if (GameMode==GAME_MODE_MULTIBALL_3 && MB3JackpotQualified==0) {
       MB3JackpotQualified = 1;
     }
+
+    SetWizardShotOrder(WIZARD_SHOT_JAKE);
   }
 
   if ((MiniModesRunning & JAKE_MINIMODE_FLAG) ) {
@@ -5319,7 +5738,7 @@ void HandleJakeStandup(byte switchHit) {
       }
     }
   } else if (GameMode==GAME_MODE_MINI_WIZARD) {
-    if (!ScoreWizardShot(WIZARD_SHOT_J << jakeNum)) {
+    if (!ScoreMiniWizardShot(MINI_WIZARD_SHOT_J << jakeNum)) {
       PlaySoundEffect(SOUND_EFFECT_RICOCHET_0 + CurrentTime % 8);
     }
   } else {
@@ -5332,17 +5751,22 @@ void HandleJakeStandup(byte switchHit) {
 
 
 void HandleSpinnerProgress(boolean leftSpinnerSeen = true) {
-  if (LastSpinnerSeen == 0xFF) {
-    SpinnerProgress[CurrentPlayer] += 1;
-  } else {
-    if (leftSpinnerSeen && (LastSpinnerSeen == 1)) SpinnerProgress[CurrentPlayer] += AlternatingSpinnerAccelerator;
-    else if (!leftSpinnerSeen && (LastSpinnerSeen == 0)) SpinnerProgress[CurrentPlayer] += AlternatingSpinnerAccelerator;
-    else SpinnerProgress[CurrentPlayer] += 1;
-  }
 
-  if (SpinnerProgress[CurrentPlayer] >= SpinnerHitsToQualifyBand) {
-    QualifyMiniMode(BAND_MINIMODE_FLAG);
-    SpinnerProgress[CurrentPlayer] = 0;
+  // Only change spinner progress if
+  // we're not already qualified
+  if (CalculateMiniModeShotsRemaining(BAND_MINIMODE_FLAG)!=0) {
+    if (LastSpinnerSeen == 0xFF) {
+      SpinnerProgress[CurrentPlayer] += 1;
+    } else {
+      if (leftSpinnerSeen && (LastSpinnerSeen == 1)) SpinnerProgress[CurrentPlayer] += AlternatingSpinnerAccelerator;
+      else if (!leftSpinnerSeen && (LastSpinnerSeen == 0)) SpinnerProgress[CurrentPlayer] += AlternatingSpinnerAccelerator;
+      else SpinnerProgress[CurrentPlayer] += 1;
+    }
+    if (SpinnerProgress[CurrentPlayer] > SpinnerHitsRequiredPerPlayer[CurrentPlayer]) {
+      SpinnerProgress[CurrentPlayer] = SpinnerHitsRequiredPerPlayer[CurrentPlayer];
+    }
+  } else {
+    QualifyMiniModeWhenReady(BAND_MINIMODE_FLAG);
   }
 
   if (leftSpinnerSeen) LastSpinnerSeen = 0;
@@ -5357,15 +5781,15 @@ void HandleSpinnerProgress(boolean leftSpinnerSeen = true) {
     }
   }
 
-  if (GameMode == GAME_MODE_FULL_WIZARD_READY && leftSpinnerSeen) {
-    SetGameMode(GAME_MODE_FULL_WIZARD_START);
-  }
+//  if (GameMode == GAME_MODE_FULL_WIZARD_READY && leftSpinnerSeen) {
+//    SetGameMode(GAME_MODE_FULL_WIZARD_START);
+//  }
 
   if ((MiniModesRunning&BAND_MINIMODE_FLAG) && leftSpinnerSeen) {
     CurrentScores[CurrentPlayer] += 2500 * PlayfieldMultiplier;
     BandShotsMade[CurrentPlayer] += 1;
   } else if (GameMode == GAME_MODE_MINI_WIZARD && leftSpinnerSeen) {
-    if (!ScoreWizardShot(WIZARD_SHOT_SPINNER)) {
+    if (!ScoreMiniWizardShot(MINI_WIZARD_SHOT_SPINNER)) {
       CurrentScores[CurrentPlayer] += 100 * PlayfieldMultiplier;
     }
   } else {
@@ -5574,19 +5998,23 @@ void HandleGamePlaySwitches(byte switchHit) {
       break;
 
     case SW_POP_BUMPER:
-      LastTimePopHit = CurrentTime;
-      CurrentScores[CurrentPlayer] += 100 * PlayfieldMultiplier;
-      PlaySoundEffect(SOUND_EFFECT_KICK_DRUM);
+      if (GameMode!=GAME_MODE_FULL_WIZARD_READY) {
+        LastTimePopHit = CurrentTime;
+        PopBumperProgress += 1;
+        CurrentScores[CurrentPlayer] += 100 * PlayfieldMultiplier;
+        PlaySoundEffect(SOUND_EFFECT_KICK_DRUM);
+      }
       ValidateAndRegisterPlayfieldSwitch();
       break;
 
     case SW_BOTTOM_LEFT:
       if (GameMode==GAME_MODE_MINI_WIZARD) {
-        if (!ScoreWizardShot(WIZARD_SHOT_SAVE_GATE)) {
+        if (!ScoreMiniWizardShot(MINI_WIZARD_SHOT_SAVE_GATE)) {
           CurrentScores[CurrentPlayer] += 1000 * PlayfieldMultiplier;
           PlaySoundEffect(SOUND_EFFECT_RICOCHET_0 + CurrentTime % 8);
         }        
-      } else {
+      } else if (GameMode!=GAME_MODE_FULL_WIZARD_READY) {
+        SetWizardShotOrder(WIZARD_SHOT_SAVE_GATE);
         CurrentScores[CurrentPlayer] += 1000 * PlayfieldMultiplier;
         if (LeftGateAvailableTime && (CurrentTime > LeftGateAvailableTime)) {
           PlaySoundEffect(SOUND_EFFECT_CELL_DOOR);
@@ -5599,24 +6027,30 @@ void HandleGamePlaySwitches(byte switchHit) {
       break;
 
     case SW_CAPTIVE_BALL:
-      if (CurrentTime > (LastCaptiveBallHit + 1000)) {
-        LastCaptiveBallHit = CurrentTime;
-        CurrentScores[CurrentPlayer] += 10000 * PlayfieldMultiplier;
-        HandleCaptiveBallHit();
-        AddToBuildBonus(BUILD_BONUS_LAMP_CAPTIVE_BALL, 10000);
+      if (GameMode!=GAME_MODE_FULL_WIZARD_READY) {
+        if (CurrentTime > (LastCaptiveBallHit + 1000)) {
+          LastCaptiveBallHit = CurrentTime;
+          CurrentScores[CurrentPlayer] += 10000 * PlayfieldMultiplier;
+          HandleCaptiveBallHit();
+          AddToBuildBonus(BUILD_BONUS_LAMP_CAPTIVE_BALL, 10000);
+        }
       }
       ValidateAndRegisterPlayfieldSwitch();
       break;
 
     case SW_LEFT_INLANE:
-      AddToBuildBonus(BUILD_BONUS_LAMP_LEFT_INLANE, 100);
+      if (GameMode!=GAME_MODE_FULL_WIZARD_READY) {
+        AddToBuildBonus(BUILD_BONUS_LAMP_LEFT_INLANE, 100);
+      }
       ValidateAndRegisterPlayfieldSwitch();
       break;
 
     case SW_RIGHT_INLANE:
       if (BallLaunched && CurrentTime > (LastTimeSaucerSeen+500)) {
-        AddToBuildBonus(BUILD_BONUS_LAMP_RIGHT_INLANE, 100);
-        LeftSpinnerLitTime = CurrentTime;
+        if (GameMode!=GAME_MODE_FULL_WIZARD_READY) {
+          AddToBuildBonus(BUILD_BONUS_LAMP_RIGHT_INLANE, 100);
+          LeftSpinnerLitTime = CurrentTime;
+        }
         ValidateAndRegisterPlayfieldSwitch();
       }
       break;
@@ -5670,102 +6104,123 @@ void HandleGamePlaySwitches(byte switchHit) {
 
     case SW_RIGHT_FLIP_LANE:
       RightFlipLanes[CurrentPlayer] += 1;
-      if (CollectFlipBonusTimeout) {
-        CollectFlipBonusTimeout = 0;
-        NextBonusPayoutTime = CurrentTime + 1000;
-        PlaySoundEffect(SOUND_EFFECT_BONUS_PAYOUT_START);
-      }
-      if (GameMode == GAME_MODE_MULTIBALL_3_START) {
-        Multiball3StartShotHit = true;
-        Multiball3StartAward += 50000;
-        if (DEBUG_MESSAGES) {
-          Serial.write("MB3 Flip lane hit\n");
+      SetWizardShotOrder(WIZARD_SHOT_FLIP);
+      if (GameMode!=GAME_MODE_FULL_WIZARD_READY) {
+        if (CollectFlipBonusTimeout) {
+          CollectFlipBonusTimeout = 0;
+          NextBonusPayoutTime = CurrentTime + 1000;
+          PlaySoundEffect(SOUND_EFFECT_BONUS_PAYOUT_START);
         }
-      } else if (GameMode == GAME_MODE_MINI_WIZARD) {
-        if (!ScoreWizardShot(WIZARD_SHOT_RIGHT_FLIP)) {
-          CurrentScores[CurrentPlayer] += 1000 * PlayfieldMultiplier;
-          PlaySoundEffect(SOUND_EFFECT_RICOCHET_0 + CurrentTime % 8);
-        }
-      } else if (GameMode == GAME_MODE_MINIMODE) {
-        byte soundToPlay = RightFlipsSeen;
-        if (soundToPlay > 2) soundToPlay = 2;
-        PlaySoundEffect(SOUND_EFFECT_BAND_HIT_1 + soundToPlay);
-        RightFlipsSeen += 1;
-        if (!AddABallUsed) {
-          if (RightFlipsSeen == RightFlipsForAddABall) {
-            SetBallSave(((unsigned long)BallSaveOnAddABall) * 1000);
-            AddABallUsed = true;
-            AddABall(true);
+        if (GameMode == GAME_MODE_MULTIBALL_3_START) {
+          Multiball3StartShotHit = true;
+          Multiball3StartAward += 50000;
+          if (DEBUG_MESSAGES) {
+            Serial.write("MB3 Flip lane hit\n");
+          }
+        } else if (GameMode == GAME_MODE_MINI_WIZARD) {
+          if (!ScoreMiniWizardShot(MINI_WIZARD_SHOT_RIGHT_FLIP)) {
+            CurrentScores[CurrentPlayer] += 1000 * PlayfieldMultiplier;
+            PlaySoundEffect(SOUND_EFFECT_RICOCHET_0 + CurrentTime % 8);
+          }
+        } else if (GameMode == GAME_MODE_MINIMODE) {
+          byte soundToPlay = RightFlipsSeen;
+          if (soundToPlay > 2) soundToPlay = 2;
+          PlaySoundEffect(SOUND_EFFECT_BAND_HIT_1 + soundToPlay);
+          RightFlipsSeen += 1;
+          if (!AddABallUsed) {
+            if (RightFlipsSeen == RightFlipsForAddABall) {
+              SetBallSave(((unsigned long)BallSaveOnAddABall) * 1000);
+              AddABallUsed = true;
+              AddABall(true);
+            }
+          } else {
+            if (RightFlipsSeen > RightFlipsForAddABall) {
+              Display_StartScoreAnimation(15000 * PlayfieldMultiplier, true);
+              //PlaySoundEffect(SOUND_EFFECT_MINI_JACKPOT);
+            }
           }
         } else {
-          if (RightFlipsSeen > RightFlipsForAddABall) {
-            Display_StartScoreAnimation(15000 * PlayfieldMultiplier, true);
-            //PlaySoundEffect(SOUND_EFFECT_MINI_JACKPOT);
-          }
+          PlaySoundEffect(SOUND_EFFECT_LOOP_1 + CurrentTime % 2);
         }
-      } else {
-        PlaySoundEffect(SOUND_EFFECT_LOOP_1 + CurrentTime % 2);
+        AddToBuildBonus(BUILD_BONUS_LAMP_LOOP_LANE, 10000);
       }
-      AddToBuildBonus(BUILD_BONUS_LAMP_LOOP_LANE, 10000);
       LastFlipLaneTime = CurrentTime;
       ValidateAndRegisterPlayfieldSwitch();
       break;
 
     case SW_MID_TOP:
-      CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 10;
-      PlaySoundEffect(SOUND_EFFECT_RIM_SHOT);
+      if (GameMode!=GAME_MODE_FULL_WIZARD_READY) {
+        CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 10;
+        PlaySoundEffect(SOUND_EFFECT_RIM_SHOT);
+      }
       if (GameMode!=GAME_MODE_SKILL_SHOT) ValidateAndRegisterPlayfieldSwitch();
       break;
 
     case SW_LEFT_SLING:
-      CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 10;
-      PlaySoundEffect(SOUND_EFFECT_TOM_SHOT_1);
+      if (GameMode!=GAME_MODE_FULL_WIZARD_READY) {
+        CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 10;
+        PlaySoundEffect(SOUND_EFFECT_TOM_SHOT_1);
+      }
       if (GameMode!=GAME_MODE_SKILL_SHOT) ValidateAndRegisterPlayfieldSwitch();
       break;
 
     case SW_RIGHT_SLING:
-      CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 10;
-      PlaySoundEffect(SOUND_EFFECT_RIM_SHOT_2);
+      if (GameMode!=GAME_MODE_FULL_WIZARD_READY) {
+        CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 10;
+        PlaySoundEffect(SOUND_EFFECT_RIM_SHOT_2);
+      }
       if (GameMode!=GAME_MODE_SKILL_SHOT) ValidateAndRegisterPlayfieldSwitch();
       break;
 
     case SW_TOP_SLING:
-      CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 10;
-      PlaySoundEffect(SOUND_EFFECT_RIM_SHOT_3);
+      if (GameMode!=GAME_MODE_FULL_WIZARD_READY) {
+        CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 10;
+        PlaySoundEffect(SOUND_EFFECT_RIM_SHOT_3);
+      }
       if (GameMode!=GAME_MODE_SKILL_SHOT) ValidateAndRegisterPlayfieldSwitch();
       break;
 
     case SW_MID_LEFT:
-      CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 10;
-      PlaySoundEffect(SOUND_EFFECT_SNARE_AND_CYMBAL);
+      if (GameMode!=GAME_MODE_FULL_WIZARD_READY) {
+        CurrentScores[CurrentPlayer] += PlayfieldMultiplier * 10;
+        PlaySoundEffect(SOUND_EFFECT_SNARE_AND_CYMBAL);
+      }
       if (GameMode!=GAME_MODE_SKILL_SHOT) ValidateAndRegisterPlayfieldSwitch();
       break;
 
     case SW_DROP_L_1:
     case SW_DROP_L_2:
     case SW_DROP_L_3:
-      HandleLeftDropTarget(switchHit);
+      if (GameMode!=GAME_MODE_FULL_WIZARD_READY) {
+        HandleLeftDropTarget(switchHit);
+      }
       ValidateAndRegisterPlayfieldSwitch();
       break;
 
     case SW_DROP_R_1:
     case SW_DROP_R_2:
     case SW_DROP_R_3:
-      HandleRightDropTarget(switchHit);
+      if (GameMode!=GAME_MODE_FULL_WIZARD_READY) {
+        HandleRightDropTarget(switchHit);
+      }
       ValidateAndRegisterPlayfieldSwitch();
       break;
 
     case SW_LEFT_SPINNER:
-      HandleSpinnerProgress(true);
-      if (MiniModesRunning&BAND_MINIMODE_FLAG) PlaySoundEffect(SOUND_EFFECT_CORRECT_MODE_SHOT);
-      else if (LeftSpinnerLitTime) PlaySoundEffect(SOUND_EFFECT_COWBELL);
-      else PlaySoundEffect(SOUND_EFFECT_SPINNER_UNLIT_2);
+      if (GameMode!=GAME_MODE_FULL_WIZARD_READY) {
+        HandleSpinnerProgress(true);
+        if (MiniModesRunning&BAND_MINIMODE_FLAG) PlaySoundEffect(SOUND_EFFECT_CORRECT_MODE_SHOT);
+        else if (LeftSpinnerLitTime) PlaySoundEffect(SOUND_EFFECT_COWBELL);
+        else PlaySoundEffect(SOUND_EFFECT_SPINNER_UNLIT_2);
+      }
       ValidateAndRegisterPlayfieldSwitch();
       break;
 
     case SW_RIGHT_SPINNER:
-      HandleSpinnerProgress(false);
-      PlaySoundEffect(SOUND_EFFECT_SPINNER_UNLIT_1);
+      if (GameMode!=GAME_MODE_FULL_WIZARD_READY) {
+        HandleSpinnerProgress(false);
+        PlaySoundEffect(SOUND_EFFECT_SPINNER_UNLIT_1);
+      }
       ValidateAndRegisterPlayfieldSwitch();
       break;
 
@@ -5773,7 +6228,9 @@ void HandleGamePlaySwitches(byte switchHit) {
     case SW_STANDUP_A:
     case SW_STANDUP_K:
     case SW_STANDUP_E:
-      HandleJakeStandup(switchHit);
+      if (GameMode!=GAME_MODE_FULL_WIZARD_READY) {
+        HandleJakeStandup(switchHit);
+      }
       ValidateAndRegisterPlayfieldSwitch();
       break;
 

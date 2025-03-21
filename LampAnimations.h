@@ -384,5 +384,50 @@ boolean LampAnimationMinimodeStart(unsigned long elapsedTime, boolean showJake, 
 }
 
 
+
+void LightsOutAnimation(byte lightsOutStage, unsigned long currentTime) {
+  byte lampPhase = (currentTime / 25) % 4;
+  RPU_SetLampState(LAMP_SHOOT_AGAIN, 1, 0, 100);
+  RPU_SetLampState(LAMP_SAUCER, 1, 0, 100);
+  RPU_SetLampState(LAMP_LEFT_OUTLANE, 0);
+  RPU_SetLampState(LAMP_RIGHT_OUTLANE_EB, 0);
+  
+  RPU_SetLampState(LAMP_LEFT_INLANE, lampPhase==0 && lightsOutStage<5);
+  RPU_SetLampState(LAMP_OPEN_SAVE_GATE, lampPhase==0 && lightsOutStage<5);
+  RPU_SetLampState(LAMP_LEFT_SLING, lampPhase==0 && lightsOutStage<5);
+  RPU_SetLampState(LAMP_BONUS_1, lampPhase==0 && lightsOutStage<5);
+  RPU_SetLampState(LAMP_BONUS_2, lampPhase==0 && lightsOutStage<5);
+  RPU_SetLampState(LAMP_BONUS_3, lampPhase==0 && lightsOutStage<5);
+  
+  RPU_SetLampState(LAMP_RIGHT_INLANE, lampPhase==1 && lightsOutStage<4);
+  RPU_SetLampState(LAMP_LOOP_BONUS, lampPhase==1 && lightsOutStage<4);
+  RPU_SetLampState(LAMP_RIGHT_SLING, lampPhase==1 && lightsOutStage<4);
+  RPU_SetLampState(LAMP_SPECIAL, lampPhase==1 && lightsOutStage<4);
+  RPU_SetLampState(LAMP_BONUS_4, lampPhase==1 && lightsOutStage<4);
+  RPU_SetLampState(LAMP_BONUS_5, lampPhase==1 && lightsOutStage<4);
+  RPU_SetLampState(LAMP_BONUS_6, lampPhase==1 && lightsOutStage<4);
+
+  RPU_SetLampState(LAMP_E_1, lampPhase==2 && lightsOutStage<3);
+  RPU_SetLampState(LAMP_L, lampPhase==2 && lightsOutStage<3);
+  RPU_SetLampState(LAMP_W, lampPhase==2 && lightsOutStage<3);
+  RPU_SetLampState(LAMP_LEFT_SPINNER, lampPhase==2 && lightsOutStage<3);
+  RPU_SetLampState(LAMP_O_1, lampPhase==2 && lightsOutStage<3);
+  RPU_SetLampState(LAMP_O_2, lampPhase==2 && lightsOutStage<3);
+  RPU_SetLampState(LAMP_D, lampPhase==2 && lightsOutStage<3);
+  RPU_SetLampState(LAMP_BEHIND_CAPTIVE, lampPhase==2 && lightsOutStage<3);
+  RPU_SetLampState(LAMP_CAPTIVE_BALL, lampPhase==2 && lightsOutStage<3);
+
+  RPU_SetLampState(LAMP_E_2, lampPhase==3 && lightsOutStage<2);
+  RPU_SetLampState(LAMP_K, lampPhase==3 && lightsOutStage<2);
+  RPU_SetLampState(LAMP_A, lampPhase==3 && lightsOutStage<2);
+  RPU_SetLampState(LAMP_J, lampPhase==3 && lightsOutStage<2);
+  RPU_SetLampState(LAMP_HIDE_AWAY, lampPhase==3 && lightsOutStage<2);
+  RPU_SetLampState(LAMP_POP_BLUE_UP, lampPhase==3 && lightsOutStage<2);
+  RPU_SetLampState(LAMP_POP_WHITE_DOWN, lampPhase==3 && lightsOutStage<2);
+  RPU_SetLampState(LAMP_POP_SMALL_BLUE, lampPhase==3 && lightsOutStage<2);
+
+}
+
+
 #define LAMP_ANIMATIONS_H
 #endif
