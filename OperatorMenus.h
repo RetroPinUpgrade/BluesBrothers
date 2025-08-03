@@ -38,6 +38,7 @@ extern byte CPCSelection[3];
 #define OPERATOR_MENU_ADJ_TYPE_CPC                  7
 #define OPERATOR_MENU_AUD_DISPLAY_ONLY              10
 #define OPERATOR_MENU_AUD_CLEARABLE                 11
+#define OPERATOR_MENU_ADJ_HOLD_TO_INSTALL           12
 
 #define OPERATOR_MENU_BUTTON_UNDEFINED   0xF0
 

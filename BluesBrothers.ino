@@ -18,7 +18,7 @@
 #include <EEPROM.h>
 
 #define GAME_MAJOR_VERSION  2024
-#define GAME_MINOR_VERSION  21
+#define GAME_MINOR_VERSION  22
 #define DEBUG_MESSAGES  1
 
 #if (DEBUG_MESSAGES==1)
@@ -28,6 +28,10 @@
 /*********************************************************************
 
     Game specific code
+
+25 no callout
+does pop strength work?
+
 
 *********************************************************************/
 
@@ -721,6 +725,12 @@ void SetAllParameterDefaults() {
   ShooterKickFullStrength = 4;
   ShooterKickLightStrength = 2;
   BallServeSolenoidStrength = 50;
+  TempSlingStrength = 4;
+  TempPopStrength = 4;
+  SolenoidAssociatedSwitches[0].solenoidHoldTime = TempSlingStrength;
+  SolenoidAssociatedSwitches[1].solenoidHoldTime = TempSlingStrength;
+  SolenoidAssociatedSwitches[2].solenoidHoldTime = TempSlingStrength;
+  SolenoidAssociatedSwitches[3].solenoidHoldTime = TempPopStrength;
   CPCSelection[0] = 4;
   CPCSelection[1] = 4;
   CPCSelection[2] = 4;
@@ -746,6 +756,26 @@ void SetAllParameterDefaults() {
   BonusCollectHurryUp = 20;
 }
 
+
+/**
+ * @brief Resets all game-specific audit values stored in EEPROM to zero.
+ * * This function is intended to be called from the operator menu when the user
+ * selects and confirms the "Clear Audits" option. It writes zero to all the
+ * EEPROM locations that store game audits, such as total plays, coins, and
+ * replays. It also resets the high score to its default value and clears
+ * the current credit count.
+ */
+void ClearAudits() {
+  // Clear the coin audits for each chute
+  RPU_WriteULToEEProm(RPU_CHUTE_1_COINS_START_BYTE, 0UL);
+  RPU_WriteULToEEProm(RPU_CHUTE_2_COINS_START_BYTE, 0UL);
+  RPU_WriteULToEEProm(RPU_CHUTE_3_COINS_START_BYTE, 0UL);
+
+  // Clear the total play audits
+  RPU_WriteULToEEProm(RPU_TOTAL_PLAYS_EEPROM_START_BYTE, 0UL);
+  RPU_WriteULToEEProm(RPU_TOTAL_REPLAYS_EEPROM_START_BYTE, 0UL);
+  RPU_WriteULToEEProm(RPU_TOTAL_HISCORE_BEATEN_START_BYTE, 0UL);
+}
 
 boolean LoadRuleDefaults(byte ruleLevel) {
   // This function just puts the rules in RAM.
@@ -1982,6 +2012,14 @@ void UpdateLiftGate() {
 #define SOUND_EFFECT_AP_AUDIT_MINUTES_ON        1731
 #define SOUND_EFFECT_AP_AUDIT_CLEAR_AUDITS      1732
 
+#define OM_AUDIT_TOTAL_PLAYS      0
+#define OM_AUDIT_CHUTE_1_COINS    1
+#define OM_AUDIT_CHUTE_2_COINS    2
+#define OM_AUDIT_CHUTE_3_COINS    3
+#define OM_AUDIT_TOTAL_REPLAYS    4
+#define OM_AUDIT_HISCR_BEAT       5
+#define OM_AUDIT_CLEAR_AUDITS     6
+
 #define OM_BASIC_ADJ_IDS_FREEPLAY               0
 #define OM_BASIC_ADJ_IDS_BALL_SAVE              1
 #define OM_BASIC_ADJ_IDS_TILT_WARNINGS          2
@@ -2004,7 +2042,8 @@ void UpdateLiftGate() {
 #define OM_BASIC_ADJ_IDS_CPC_2                  19
 #define OM_BASIC_ADJ_IDS_CPC_3                  20
 #define OM_BASIC_ADJ_IDS_MATCH_FEATURE          21
-#define OM_BASIC_ADJ_FINISHED                   22
+#define OM_BASIC_ADJ_RESTORE_DEFAULTS           22
+#define OM_BASIC_ADJ_FINISHED                   23
 #define SOUND_EFFECT_AP_FREEPLAY                (1740 + OM_BASIC_ADJ_IDS_FREEPLAY)
 #define SOUND_EFFECT_AP_BALL_SAVE_SECONDS       (1740 + OM_BASIC_ADJ_IDS_BALL_SAVE)
 #define SOUND_EFFECT_AP_TILT_WARNINGS           (1740 + OM_BASIC_ADJ_IDS_TILT_WARNINGS)
@@ -2027,12 +2066,15 @@ void UpdateLiftGate() {
 #define SOUND_EFFECT_AP_ADJ_CPC_2               (1740 + OM_BASIC_ADJ_IDS_CPC_2)
 #define SOUND_EFFECT_AP_ADJ_CPC_3               (1740 + OM_BASIC_ADJ_IDS_CPC_3)
 #define SOUND_EFFECT_AP_MATCH_FEATURE           (1740 + OM_BASIC_ADJ_IDS_MATCH_FEATURE)
+#define SOUND_EFFECT_AP_RESTORE_DEFAULTS        (1740 + OM_BASIC_ADJ_RESTORE_DEFAULTS)
 
 #define SOUND_EFFECT_OM_EASY_RULES_INSTRUCTIONS           1770
 #define SOUND_EFFECT_OM_MEDIUM_RULES_INSTRUCTIONS         1771
 #define SOUND_EFFECT_OM_HARD_RULES_INSTRUCTIONS           1772
 #define SOUND_EFFECT_OM_PROGRESSIVE_RULES_INSTRUCTIONS    1773
 #define SOUND_EFFECT_OM_CUSTOM_RULES_INSTRUCTIONS         1774
+#define SOUND_EFFECT_OM_AUDITS_CLEARED                    1778
+#define SOUND_EFFECT_OM_FACTORY_DEFAULTS_RESTORED         1779
 
 #define OM_GAME_ADJ_EASY_DIFFICULTY                 0
 #define OM_GAME_ADJ_MEDIUM_DIFFICULTY               1
@@ -2066,12 +2108,17 @@ void UpdateLiftGate() {
 #define OM_GAME_ADJ_SLINGSHOT_STRENGTH              22
 #define OM_GAME_ADJ_POP_BUMPER_STRENGTH             23
 #define OM_GAME_ADJ_MINIMODE_REQUALIFY_BEHAVIOR     24
-#define OM_GAME_ADJ_FINISHED                        25
+
+// This should be 25, but I'm setting it to 24 until I can do callouts
+// for the requalify behavior settings
+#define OM_GAME_ADJ_FINISHED                        24
 #define SOUND_EFFECT_AP_LOCK_BEHAVIOR               (1800 + OM_GAME_ADJ_LOCK_BEHAVIOR)
 
 unsigned long SoundSettingTimeout;
 unsigned long SoundTestStart;
 byte SoundTestSequence;
+byte DummyParameter;
+
   
 void RunOperatorMenu() {
   if (!Menus.UpdateMenu(CurrentTime)) {
@@ -2108,6 +2155,7 @@ void RunOperatorMenu() {
     SoundTestStart = 0;
     Audio.StopAllAudio();
     Audio.PlaySound((unsigned short)topLevel + SOUND_EFFECT_AP_TOP_LEVEL_MENU_ENTRY, AUDIO_PLAY_TYPE_WAV_TRIGGER, 10);
+    if (Menus.GetTopLevel()==OPERATOR_MENU_AUDITS_MENU) Menus.SetNumSubLevels(7);
     if (Menus.GetTopLevel()==OPERATOR_MENU_GAME_RULES_LEVEL) Menus.SetNumSubLevels(4);
     if (Menus.GetTopLevel()==OPERATOR_MENU_BASIC_ADJ_MENU) {
       GetCPCSelection(0); // make sure CPC values have been read
@@ -2134,29 +2182,33 @@ void RunOperatorMenu() {
       byte adjustmentType = OPERATOR_MENU_AUD_CLEARABLE;
 
       switch (subLevel) {
-        case 0:
+        case OM_AUDIT_TOTAL_PLAYS:
           Audio.PlaySound(SOUND_EFFECT_AP_AUDIT_TOTAL_PLAYS, AUDIO_PLAY_TYPE_WAV_TRIGGER, 10);
           currentAdjustmentStorageByte = RPU_TOTAL_PLAYS_EEPROM_START_BYTE;
           break;
-        case 1:
+        case OM_AUDIT_CHUTE_1_COINS:
           Audio.PlaySound(SOUND_EFFECT_AP_AUDIT_CHUTE_1_COINS, AUDIO_PLAY_TYPE_WAV_TRIGGER, 10);
           currentAdjustmentStorageByte = RPU_CHUTE_1_COINS_START_BYTE;
           break;
-        case 2:
+        case OM_AUDIT_CHUTE_2_COINS:
           Audio.PlaySound(SOUND_EFFECT_AP_AUDIT_CHUTE_2_COINS, AUDIO_PLAY_TYPE_WAV_TRIGGER, 10);
           currentAdjustmentStorageByte = RPU_CHUTE_2_COINS_START_BYTE;
           break;
-        case 3:
+        case OM_AUDIT_CHUTE_3_COINS:
           Audio.PlaySound(SOUND_EFFECT_AP_AUDIT_CHUTE_3_COINS, AUDIO_PLAY_TYPE_WAV_TRIGGER, 10);
           currentAdjustmentStorageByte = RPU_CHUTE_3_COINS_START_BYTE;
           break;
-        case 4:
+        case OM_AUDIT_TOTAL_REPLAYS:
           Audio.PlaySound(SOUND_EFFECT_AP_AUDIT_TOTAL_REPLAYS, AUDIO_PLAY_TYPE_WAV_TRIGGER, 10);
           currentAdjustmentStorageByte = RPU_TOTAL_REPLAYS_EEPROM_START_BYTE;
           break;
-        case 5:
+        case OM_AUDIT_HISCR_BEAT:
           Audio.PlaySound(SOUND_EFFECT_AP_AUDIT_HISCR_BEAT, AUDIO_PLAY_TYPE_WAV_TRIGGER, 10);
           currentAdjustmentStorageByte = RPU_TOTAL_HISCORE_BEATEN_START_BYTE;
+          break;
+        case OM_AUDIT_CLEAR_AUDITS:
+          Audio.PlaySound(SOUND_EFFECT_AP_AUDIT_CLEAR_AUDITS, AUDIO_PLAY_TYPE_WAV_TRIGGER, 10);
+          adjustmentType = OPERATOR_MENU_ADJ_HOLD_TO_INSTALL;
           break;
       }
 
@@ -2315,6 +2367,13 @@ void RunOperatorMenu() {
           currentAdjustmentByte = (byte *)&MatchFeature;
           currentAdjustmentStorageByte = EEPROM_MATCH_FEATURE_BYTE;
           break;
+        case OM_BASIC_ADJ_RESTORE_DEFAULTS:
+          currentAdjustmentByte = &DummyParameter;
+          currentAdjustmentStorageByte = 0;
+          adjustmentType = OPERATOR_MENU_ADJ_HOLD_TO_INSTALL;
+          adjustmentValues[0] = 0;
+          adjustmentValues[1] = 0;
+          break;
       }
 
       Menus.SetParameterControls(   adjustmentType, numAdjustmentValues, adjustmentValues, parameterCallout,
@@ -2342,7 +2401,7 @@ void RunOperatorMenu() {
           break;
       }
 
-      Menus.SetParameterControls(   OPERATOR_MENU_ADJ_TYPE_LIST, 2, adjustmentValues, (short)SOUND_EFFECT_OM_EASY_RULES_INSTRUCTIONS-1,
+      Menus.SetParameterControls(   OPERATOR_MENU_ADJ_HOLD_TO_INSTALL, 2, adjustmentValues, /*(short)SOUND_EFFECT_OM_EASY_RULES_INSTRUCTIONS-1,*/0,
                                     EEPROM_GAME_RULES_SELECTION, currentAdjustmentByte, NULL );
                   
     } else if (topLevel==OPERATOR_MENU_GAME_ADJ_MENU) {
@@ -2569,6 +2628,20 @@ void RunOperatorMenu() {
       Audio.PlaySound((unsigned short)parameterCallout + Menus.GetParameterID(), AUDIO_PLAY_TYPE_WAV_TRIGGER, 10);
     }
     if (Menus.GetTopLevel()==OPERATOR_MENU_GAME_RULES_LEVEL) {
+      switch(Menus.GetSubLevel()) {
+        case 0:
+          Audio.PlaySound(SOUND_EFFECT_OM_EASY_RULES_INSTRUCTIONS, AUDIO_PLAY_TYPE_WAV_TRIGGER, 10);
+          break;
+        case 1:
+          Audio.PlaySound(SOUND_EFFECT_OM_MEDIUM_RULES_INSTRUCTIONS, AUDIO_PLAY_TYPE_WAV_TRIGGER, 10);
+          break;
+        case 2:
+          Audio.PlaySound(SOUND_EFFECT_OM_HARD_RULES_INSTRUCTIONS, AUDIO_PLAY_TYPE_WAV_TRIGGER, 10);
+          break;
+        case 3:
+          Audio.PlaySound(SOUND_EFFECT_OM_PROGRESSIVE_RULES_INSTRUCTIONS, AUDIO_PLAY_TYPE_WAV_TRIGGER, 10);
+          break;
+      }
       // Install the new rules level
       if (LoadRuleDefaults(GameRulesSelection)) {
         WriteParameters();
@@ -2589,6 +2662,15 @@ void RunOperatorMenu() {
         Audio.PlaySound(SOUND_EFFECT_VP_JACKPOT_1, AUDIO_PLAY_TYPE_WAV_TRIGGER, CalloutsVolume);
         Audio.SetNotificationsVolume(CalloutsVolume);
         SoundSettingTimeout = CurrentTime + 3000;        
+      } else if (Menus.GetSubLevel()==OM_BASIC_ADJ_RESTORE_DEFAULTS) {
+        Audio.PlaySound(SOUND_EFFECT_OM_FACTORY_DEFAULTS_RESTORED, AUDIO_PLAY_TYPE_WAV_TRIGGER, 10);
+        SetAllParameterDefaults();
+        WriteParameters(false);
+      }
+    } else if (Menus.GetTopLevel()==OPERATOR_MENU_AUDITS_MENU) {
+      if (Menus.GetSubLevel()==OM_AUDIT_CLEAR_AUDITS) {
+        Audio.PlaySound(SOUND_EFFECT_OM_AUDITS_CLEARED, AUDIO_PLAY_TYPE_WAV_TRIGGER, 10);
+        ClearAudits();
       }
     } else if (Menus.GetTopLevel()==OPERATOR_MENU_GAME_ADJ_MENU) {
       if (Menus.GetSubLevel()==OM_GAME_ADJ_SLINGSHOT_STRENGTH) {
